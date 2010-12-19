@@ -1092,6 +1092,7 @@
         [sAmbiguousWidth9 addCharactersInRange:NSMakeRange(0x220b, 1)];
         [sAmbiguousWidth9 addCharactersInRange:NSMakeRange(0x220f, 1)];
         [sAmbiguousWidth9 addCharactersInRange:NSMakeRange(0x2211, 1)];
+        [sAmbiguousWidth9 addCharactersInRange:NSMakeRange(0x2212, 1)];
         [sAmbiguousWidth9 addCharactersInRange:NSMakeRange(0x2215, 1)];
         [sAmbiguousWidth9 addCharactersInRange:NSMakeRange(0x221a, 1)];
         [sAmbiguousWidth9 addCharactersInRange:NSMakeRange(0x2223, 1)];
