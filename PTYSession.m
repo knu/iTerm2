@@ -2046,6 +2046,14 @@ static NSString *kTmuxFontChanged = @"kTmuxFontChanged";
             // paste escaping special characters
             str = [str stringWithEscapedShellCharacters];
         }
+        if ([str rangeOfString:@"\n"].location  != NSNotFound &&
+            NSRunAlertPanel(NSLocalizedStringFromTableInBundle(@"Paste a multi-line string?", @"iTerm", [NSBundle bundleForClass: [self class]], @"Paste a multi-line string"),
+                            str,
+                            NSLocalizedStringFromTableInBundle(@"OK", @"iTerm", [NSBundle bundleForClass: [self class]], @"OK"),
+                            NSLocalizedStringFromTableInBundle(@"Cancel", @"iTerm", [NSBundle bundleForClass: [self class]], @"Cancel"),
+                            nil) != NSAlertDefaultReturn) {
+            return;
+        }
         if ([sender tag] & 2) {
             [slowPasteBuffer appendString:[str stringWithLinefeedNewlines]];
             [self pasteSlowly:nil];
