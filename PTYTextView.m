@@ -5560,7 +5560,6 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
 
 - (PTYFontInfo*)getFontForChar:(UniChar)ch
                      isComplex:(BOOL)complex
-                       fgColor:(int)fgColor
                     renderBold:(BOOL*)renderBold
 {
     BOOL isBold = *renderBold && useBoldFont;
@@ -6022,7 +6021,6 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
             thisCharFakeBold = theLine[i].bold;
             thisCharFont = [self getFontForChar:theLine[i].code
                                       isComplex:theLine[i].complexChar
-                                        fgColor:theLine[i].foregroundColor
                                      renderBold:&thisCharFakeBold];
 
             // Create a new run if needed (this char differs from the previous
