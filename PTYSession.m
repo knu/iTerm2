@@ -2055,8 +2055,12 @@ static NSString *kTmuxFontChanged = @"kTmuxFontChanged";
             return;
         }
         if ([sender tag] & 2) {
+#if 0
             [slowPasteBuffer appendString:[str stringWithLinefeedNewlines]];
             [self pasteSlowly:nil];
+#else
+            [self _pasteString:str];
+#endif
         } else {
             [self _pasteString:str];
         }
