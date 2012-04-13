@@ -39,6 +39,8 @@
 #import "PTYTab.h"
 #import "iTermExpose.h"
 #import "ColorsMenuItemView.h"
+#import "iTermFontPanel.h"
+#import "PseudoTerminalRestorer.h"
 #include <unistd.h>
 #include <sys/stat.h>
 
@@ -181,9 +183,10 @@ static BOOL hasBecomeActive = NO;
             // Open the saved arrangement at startup.
             [[iTermController sharedInstance] loadWindowArrangementWithName:[WindowArrangements defaultArrangementName]];
         } else {
-            // Make sure at least one window is open.
-            if ([[[iTermController sharedInstance] terminals] count] == 0) {
-                [self newWindow:nil];
+            if (![PseudoTerminalRestorer willOpenWindows]) {
+                if ([[[iTermController sharedInstance] terminals] count] == 0) {
+                    [self newWindow:nil];
+                }
             }
         }
     }
@@ -263,6 +266,8 @@ static BOOL hasBecomeActive = NO;
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification
 {
+    [iTermFontPanel makeDefault];
+
     finishedLaunching_ = YES;
     // Create the app support directory
     [self _createFlag];
@@ -294,6 +299,8 @@ static BOOL hasBecomeActive = NO;
     [self performSelector:@selector(_performStartupActivities)
                withObject:nil
                afterDelay:0];
+    [[NSNotificationCenter defaultCenter] postNotificationName:kApplicationDidFinishLaunchingNotification
+                                                        object:nil];
 }
 
 - (BOOL)applicationShouldTerminate:(NSNotification *)theNotification
@@ -433,19 +440,18 @@ static BOOL hasBecomeActive = NO;
     if ([filename isEqualToString:[ITERM2_FLAG stringByExpandingTildeInPath]]) {
         return YES;
     }
-    filename = [filename stringWithEscapedShellCharacters];
     if (filename) {
         // Verify whether filename is a script or a folder
         BOOL isDir;
         [[NSFileManager defaultManager] fileExistsAtPath:filename isDirectory:&isDir];
         if (!isDir) {
-            NSString *aString = [NSString stringWithFormat:@"%@; exit;\n", filename];
+            NSString *aString = [NSString stringWithFormat:@"%@; exit;\n", [filename stringWithEscapedShellCharacters]];
             [[iTermController sharedInstance] launchBookmark:nil inTerminal:[self currentTerminal]];
             // Sleeping a while waiting for the login.
             sleep(1);
             [[[[iTermController sharedInstance] currentTerminal] currentSession] insertText:aString];
         } else {
-            NSString *aString = [NSString stringWithFormat:@"cd %@\n", filename];
+            NSString *aString = [NSString stringWithFormat:@"cd %@\n", [filename stringWithEscapedShellCharacters]];
             [[iTermController sharedInstance] launchBookmark:nil inTerminal:[self currentTerminal]];
             // Sleeping a while waiting for the login.
             sleep(1);
@@ -985,16 +991,18 @@ static void FlushDebugLog() {
         }
 }
 
-void DebugLog(NSString* value)
+int DebugLogImpl(const char *file, int line, const char *function, NSString* value)
 {
-        if (gDebugLogging) {
-                [gDebugLogStr appendString:value];
-                [gDebugLogStr appendString:@"\n"];
-                if ([gDebugLogStr length] > 100000000) {
-                        SwapDebugLog();
-                        [gDebugLogStr2 setString:@""];
-                }
+    if (gDebugLogging) {
+        [gDebugLogStr appendFormat:@"%s:%d (%s): ", file, line, function];
+        [gDebugLogStr appendString:value];
+        [gDebugLogStr appendString:@"\n"];
+        if ([gDebugLogStr length] > 100000000) {
+            SwapDebugLog();
+            [gDebugLogStr2 setString:@""];
         }
+    }
+    return 1;
 }
 
 /// About window

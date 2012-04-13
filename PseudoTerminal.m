@@ -76,6 +76,7 @@
 #import "TmuxDashboardController.h"
 #import "Coprocess.h"
 #import "ColorsMenuItemView.h"
+#import "iTermFontPanel.h"
 
 #define CACHED_WINDOW_POSITIONS 100
 
@@ -1435,7 +1436,7 @@ NSString *sessionsKey = @"sessions";
         ++screenNumber;
     }
 
-        [result setObject:terminalGuid_ forKey:TERMINAL_GUID];
+    [result setObject:terminalGuid_ forKey:TERMINAL_GUID];
 
     // Save window frame
     [result setObject:[NSNumber numberWithDouble:rect.origin.x]
@@ -1467,9 +1468,14 @@ NSString *sessionsKey = @"sessions";
     NSMutableArray* tabs = [NSMutableArray arrayWithCapacity:[self numberOfTabs]];
     for (NSTabViewItem* tabViewItem in [TABVIEW tabViewItems]) {
         PTYTab *theTab = [tabViewItem identifier];
-        if (!excludeTmux || ![theTab isTmuxTab]) {
-            [tabs addObject:[[tabViewItem identifier] arrangement]];
+        if ([[theTab sessions] count]) {
+            if (!excludeTmux || ![theTab isTmuxTab]) {
+                [tabs addObject:[[tabViewItem identifier] arrangement]];
+            }
         }
+    }
+    if ([tabs count] == 0) {
+        return nil;
     }
     [result setObject:tabs forKey:TERMINAL_ARRANGEMENT_TABS];
 
@@ -2691,6 +2697,11 @@ NSString *sessionsKey = @"sessions";
         [aSession scheduleUpdateIn:kFastTimerIntervalSec];
     }
 
+    for (PTYSession *session in [self sessions]) {
+        if ([[session TEXTVIEW] isFindingCursor]) {
+            [[session TEXTVIEW] endFindCursor];
+        }
+    }
     PTYSession* aSession = [[tabViewItem identifier] activeSession];
     if (_fullScreen) {
         [self _drawFullScreenBlackBackground];
@@ -4464,8 +4475,8 @@ NSString *sessionsKey = @"sessions";
 - (void)flagsChanged:(NSEvent *)theEvent
 {
     [[NSNotificationCenter defaultCenter] postNotificationName:@"iTermFlagsChanged"
-                                                                                                                object:theEvent
-                                                                                                          userInfo:nil];
+                                                        object:theEvent
+                                                      userInfo:nil];
 
     [TABVIEW processMRUEvent:theEvent];
 
@@ -5434,6 +5445,11 @@ NSString *sessionsKey = @"sessions";
             [drawer_ open];
         }
     }
+}
+
+- (NSUInteger)validModesForFontPanel:(NSFontPanel *)fontPanel
+{
+    return kValidModesForFontPanel;
 }
 
 @end
