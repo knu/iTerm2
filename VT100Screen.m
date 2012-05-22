@@ -1570,10 +1570,42 @@ static char* FormatCont(int c)
             break;
     case VT100CSI_RM:
             break;
-    case VT100CSI_SCS0: charset[0]=(token.u.code=='0'); break;
-    case VT100CSI_SCS1: charset[1]=(token.u.code=='0'); break;
-    case VT100CSI_SCS2: charset[2]=(token.u.code=='0'); break;
-    case VT100CSI_SCS3: charset[3]=(token.u.code=='0'); break;
+
+    /* My interpretation of this:
+     * http://www.cl.cam.ac.uk/~mgk25/unicode.html#term
+     * is that UTF-8 terminals should ignore SCS because
+     * it's either a no-op (in the case of iso-8859-1) or
+     * insane. Also, mosh made fun of Terminal and I don't
+     * want to be made fun of:
+     * "Only Mosh will never get stuck in hieroglyphs when a nasty
+     * program writes to the terminal. (See Markus Kuhn's discussion of
+     * the relationship between ISO 2022 and UTF-8.)"
+     * http://mosh.mit.edu/#techinfo
+     *
+     * I'm going to throw this out there (4/15/2012) and see if this breaks
+     * anything for anyone.
+     *
+     * UPDATE: In bug 1997, we see that it breaks line-drawing chars, which
+     * are in SCS0. Indeed, mosh fails to draw these as well.
+     */
+    case VT100CSI_SCS0:
+            charset[0] = (token.u.code=='0');
+            break;
+    case VT100CSI_SCS1:
+            if ([TERMINAL encoding] != NSUTF8StringEncoding) {
+                charset[1] = (token.u.code=='0');
+            }
+            break;
+    case VT100CSI_SCS2:
+            if ([TERMINAL encoding] != NSUTF8StringEncoding) {
+                charset[2] = (token.u.code=='0');
+            }
+            break;
+    case VT100CSI_SCS3:
+            if ([TERMINAL encoding] != NSUTF8StringEncoding) {
+                charset[3] = (token.u.code=='0');
+            }
+            break;
     case VT100CSI_SGR:  [self selectGraphicRendition:token]; break;
     case VT100CSI_SM: break;
     case VT100CSI_TBC:
@@ -1863,7 +1895,7 @@ static char* FormatCont(int c)
 			@"install a version that is compatible with this build of iTerm2."
 					ascii:YES];
 		[self crlf];
-		[SESSION writeTask:[@"detach\n" dataUsingEncoding:NSUTF8StringEncoding]];
+		[SESSION writeTask:[@"detach\n\n" dataUsingEncoding:NSUTF8StringEncoding]];
 		break;
 
     case UNDERSCORE_TMUX1:
@@ -3572,8 +3604,15 @@ void DumpBuf(screen_char_t* p, int n) {
     [self showCursor:[[state objectForKey:kStateDictCursorMode] boolValue]];
 
     [tabStops removeAllObjects];
+    int maxTab = 0;
     for (NSNumber *n in [state objectForKey:kStateDictTabstops]) {
         [tabStops addObject:n];
+        maxTab = MAX(maxTab, [n intValue]);
+    }
+    for (int i = 0; i < 1000; i += 8) {
+        if (i > maxTab) {
+            [tabStops addObject:[NSNumber numberWithInt:i]];
+        }
     }
 
     // TODO: The way that tmux and iterm2 handle saving the cursor position is different and incompatible and only one of us is right.

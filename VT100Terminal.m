@@ -428,8 +428,7 @@ static VT100TCC decode_csi(unsigned char *datap,
     result.type = VT100_WAIT;
 
     // Check for unkown
-    if(param.cmd == 0xff)
-    {
+    if (param.cmd == 0xff) {
         result.type = VT100_UNKNOWNCHAR;
         *rmlen = paramlen;
     }
@@ -738,8 +737,8 @@ static VT100TCC decode_underscore(unsigned char *datap,
             if ([result.u.string isEqualToString:@"tmux1.0"] ||
                 [result.u.string hasPrefix:@"tmux1.0;"]) {
                 result.type = UNDERSCORE_TMUX1;
-			} else if ([result.u.string hasPrefix:@"tmux"]) {
-				result.type = UNDERSCORE_TMUX_UNSUPPORTED;
+            } else if ([result.u.string hasPrefix:@"tmux"]) {
+                result.type = UNDERSCORE_TMUX_UNSUPPORTED;
             } else {
                 result.type = VT100_NOTSUPPORT;
             }
@@ -906,6 +905,11 @@ static VT100TCC decode_other(unsigned char *datap,
     c3 = (datalen >= 4 ? datap[3]: -1);
 
     switch (c1) {
+        case 27: // esc: two esc's in a row. Ignore the first one.
+            result.type = VT100_NOTSUPPORT;
+            *rmlen = 1;
+            break;
+
         case '#':
             if (c2 < 0) {
                 result.type = VT100_WAIT;
@@ -1147,8 +1151,7 @@ static VT100TCC decode_control(unsigned char *datap,
             case VT100CC_ESC:
                 if (datalen == 1) {
                     result.type = VT100_WAIT;
-                }
-                else {
+                } else {
                     result = decode_other(datap, datalen, rmlen, enc);
                 }
                 break;

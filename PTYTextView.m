@@ -6909,13 +6909,7 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
 
 - (double)cursorHeight
 {
-    double cursorHeight;
-    if (lineHeight < charHeightWithoutSpacing) {
-        cursorHeight = lineHeight;
-    } else {
-        cursorHeight = charHeightWithoutSpacing;
-    }
-    return cursorHeight;
+    return lineHeight;
 }
 
 - (void)_drawCursor
