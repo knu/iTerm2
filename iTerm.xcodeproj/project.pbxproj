@@ -793,8 +793,6 @@
 		0464AB0D006CD2EC7F000001 /* JTerminal */ = {
 			isa = PBXGroup;
 			children = (
-				1D2F3B3B1516BA460044C337 /* iTermFontPanel.h */,
-				1D2F3B3C1516BA460044C337 /* iTermFontPanel.m */,
 				0464AB0E006CD2EC7F000001 /* Classes */,
 				0464AB15006CD2EC7F000001 /* Headers */,
 				0464AB1F006CD2EC7F000001 /* Other Sources */,
@@ -846,6 +844,8 @@
 				20D5CC6404E7AA0500000106 /* iTermApplicationDelegate.m */,
 				E8A66F030272453F03A80106 /* iTermController.m */,
 				1DDBC61D12E2BCDC00BC3868 /* iTermExpose.m */,
+				1D2F3B3B1516BA460044C337 /* iTermFontPanel.h */,
+				1D2F3B3C1516BA460044C337 /* iTermFontPanel.m */,
 				F69E788C0AB7AC6D001EC0FF /* iTermGrowlDelegate.m */,
 				DDDB7ABD05D7736600E197C2 /* iTermKeyBindingMgr.m */,
 				1DAED99112EDF923005E49ED /* iTermSearchField.m */,
@@ -1978,7 +1978,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.5;
 				OTHER_LDFLAGS = "-licucore";
 				PRODUCT_NAME = iTerm;
-				SDKROOT = macosx10.6;
+				SDKROOT = macosx10.7;
 				SECTORDER_FLAGS = "";
 				VALID_ARCHS = "ppc i386 x86_64";
 				WARNING_CFLAGS = "-Wall";
@@ -1991,6 +1991,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
+				CODE_SIGN_IDENTITY = "Don't Code Sign";
 				COPY_PHASE_STRIP = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2019,9 +2020,10 @@
 					"\"$(SRCROOT)/Growl.framework\"",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.5;
+				OTHER_CODE_SIGN_FLAGS = "";
 				OTHER_LDFLAGS = "-licucore";
 				PRODUCT_NAME = iTerm;
-				SDKROOT = macosx10.6;
+				SDKROOT = macosx10.7;
 				VALID_ARCHS = "ppc i386 x86_64";
 				WARNING_CFLAGS = "-Wall";
 				WRAPPER_EXTENSION = app;
@@ -2078,7 +2080,7 @@
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)";
 				GCC_C_LANGUAGE_STANDARD = c99;
-				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_VERSION = com.apple.compilers.llvmgcc42;
 				GCC_WARN_CHECK_SWITCH_STATEMENTS = YES;
 				GCC_WARN_MISSING_PARENTHESES = YES;
 				GCC_WARN_PROTOTYPE_CONVERSION = NO;
@@ -2089,7 +2091,7 @@
 				GENERATE_PROFILING_CODE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.5;
 				PREBINDING = NO;
-				SDKROOT = macosx10.6;
+				SDKROOT = macosx10.7;
 				VALID_ARCHS = x86_64;
 				WARNING_CFLAGS = "-Wall";
 			};
@@ -2101,7 +2103,7 @@
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)";
 				GCC_C_LANGUAGE_STANDARD = c99;
-				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_VERSION = com.apple.compilers.llvmgcc42;
 				GCC_WARN_PROTOTYPE_CONVERSION = NO;
 				GCC_WARN_SIGN_COMPARE = NO;
 				MACOSX_DEPLOYMENT_TARGET = 10.5;
@@ -2117,7 +2119,7 @@
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)";
-				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_VERSION = com.apple.compilers.llvmgcc42;
 				GCC_WARN_PROTOTYPE_CONVERSION = NO;
 				GCC_WARN_SIGN_COMPARE = NO;
 				MACOSX_DEPLOYMENT_TARGET = 10.5;

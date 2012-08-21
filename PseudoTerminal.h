@@ -351,7 +351,6 @@ NSWindowDelegate,
 - (IBAction)openSplitVerticallySheet:(id)sender;
 - (IBAction)openDashboard:(id)sender;
 - (IBAction)findCursor:(id)sender;
-- (IBAction)wrapToggleToolbarShown:(id)sender;
 
 - (void)futureInvalidateRestorableState;
 
@@ -816,6 +815,7 @@ NSWindowDelegate,
 @end
 
 @interface PseudoTerminal (Private)
+- (IBAction)wrapToggleToolbarShown:(id)sender;
 - (void)_refreshTerminal:(NSNotification *)aNotification;
 - (void)_updateToolbeltParentage;
 
@@ -990,6 +990,7 @@ NSWindowDelegate,
 
 - (BOOL)_haveLeftBorder;
 - (BOOL)_haveBottomBorder;
+- (BOOL)_haveTopBorder;
 - (BOOL)_haveRightBorder;
 
 @end
