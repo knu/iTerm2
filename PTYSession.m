@@ -682,6 +682,10 @@ static NSString *kTmuxFontChanged = @"kTmuxFontChanged";
             (int)arc4random()];
 }
 
+- (BOOL)shouldSetCtype {
+    return ![[NSUserDefaults standardUserDefaults] boolForKey:@"DoNotSetCtype"];
+}
+
 - (void)startProgram:(NSString *)program
            arguments:(NSArray *)prog_argv
          environment:(NSDictionary *)prog_env
@@ -711,7 +715,7 @@ static NSString *kTmuxFontChanged = @"kTmuxFontChanged";
         [[addressBookEntry objectForKey:KEY_SET_LOCALE_VARS] boolValue]) {
         if (lang) {
             [env setObject:lang forKey:@"LANG"];
-        } else {
+        } else if ([self shouldSetCtype]){
             // Try just the encoding by itself, which might work.
             NSString *encName = [self encodingName];
             if (encName && [self _localeIsSupported:encName]) {
@@ -1292,23 +1296,11 @@ static NSString *kTmuxFontChanged = @"kTmuxFontChanged";
         return;
     }
     if ([text length] > 0) {
-        NSMutableString *temp = [NSMutableString stringWithString:text];
-        [temp replaceOccurrencesOfString:@"\\n"
-                              withString:@"\n"
-                                 options:NSLiteralSearch
-                                   range:NSMakeRange(0, [temp length])];
-        [temp replaceOccurrencesOfString:@"\\e"
-                              withString:@"\e"
-                                 options:NSLiteralSearch
-                                   range:NSMakeRange(0, [temp length])];
-        [temp replaceOccurrencesOfString:@"\\a"
-                              withString:@"\a"
-                                 options:NSLiteralSearch
-                                   range:NSMakeRange(0, [temp length])];
-        [temp replaceOccurrencesOfString:@"\\t"
-                              withString:@"\t"
-                                 options:NSLiteralSearch
-                                   range:NSMakeRange(0, [temp length])];
+        NSString *temp = text;
+        temp = [temp stringByReplacingEscapedChar:'n' withString:@"\n"];
+        temp = [temp stringByReplacingEscapedChar:'e' withString:@"\e"];
+        temp = [temp stringByReplacingEscapedChar:'a' withString:@"\a"];
+        temp = [temp stringByReplacingEscapedChar:'t' withString:@"\t"];
         [self writeTask:[temp dataUsingEncoding:NSUTF8StringEncoding]];
     }
 }
@@ -1383,11 +1375,6 @@ static NSString *kTmuxFontChanged = @"kTmuxFontChanged";
         return;
     }
 
-    if (!EXIT && tmuxMode_ == TMUX_GATEWAY) {
-        [self handleKeypressInTmuxGateway:unicode];
-        return;
-    }
-
     unsigned short keycode = [event keyCode];
     if (debugKeyDown) {
         NSLog(@"event:%@ (%x+%x)[%@][%@]:%x(%c) <%d>", event,modflag,keycode,keystr,unmodkeystr,unicode,unicode,(modflag & NSNumericPadKeyMask));
@@ -1446,6 +1433,8 @@ static NSString *kTmuxFontChanged = @"kTmuxFontChanged";
             }
         }
 
+        BOOL isTmuxGateway = (!EXIT && tmuxMode_ == TMUX_GATEWAY);
+
         switch (keyBindingAction) {
             case KEY_ACTION_MOVE_TAB_LEFT:
                 [[[self tab] realParentWindow] moveTabLeft:nil];
@@ -1499,25 +1488,25 @@ static NSString *kTmuxFontChanged = @"kTmuxFontChanged";
                 [(PTYScrollView *)[TEXTVIEW enclosingScrollView] detectUserScroll];
                 break;
             case KEY_ACTION_ESCAPE_SEQUENCE:
-                if (EXIT) {
+                if (EXIT || isTmuxGateway) {
                     return;
                 }
                 [self sendEscapeSequence:keyBindingText];
                 break;
             case KEY_ACTION_HEX_CODE:
-                if (EXIT) {
+                if (EXIT || isTmuxGateway) {
                     return;
                 }
                 [self sendHexCode:keyBindingText];
                 break;
             case KEY_ACTION_TEXT:
-                if (EXIT) {
+                if (EXIT || isTmuxGateway) {
                     return;
                 }
                 [self sendText:keyBindingText];
                 break;
             case KEY_ACTION_RUN_COPROCESS:
-                if (EXIT) {
+                if (EXIT || isTmuxGateway) {
                     return;
                 }
                 [self launchCoprocessWithCommand:keyBindingText];
@@ -1527,13 +1516,13 @@ static NSString *kTmuxFontChanged = @"kTmuxFontChanged";
                 break;
 
             case KEY_ACTION_SEND_C_H_BACKSPACE:
-                if (EXIT) {
+                if (EXIT || isTmuxGateway) {
                     return;
                 }
                 [self writeTask:[@"\010" dataUsingEncoding:NSUTF8StringEncoding]];
                 break;
             case KEY_ACTION_SEND_C_QM_BACKSPACE:
-                if (EXIT) {
+                if (EXIT || isTmuxGateway) {
                     return;
                 }
                 [self writeTask:[@"\177" dataUsingEncoding:NSUTF8StringEncoding]]; // decimal 127
@@ -1541,9 +1530,15 @@ static NSString *kTmuxFontChanged = @"kTmuxFontChanged";
             case KEY_ACTION_IGNORE:
                 break;
             case KEY_ACTION_IR_FORWARD:
+                if (isTmuxGateway) {
+                    return;
+                }
                 [[iTermController sharedInstance] irAdvance:1];
                 break;
             case KEY_ACTION_IR_BACKWARD:
+                if (isTmuxGateway) {
+                    return;
+                }
                 [[iTermController sharedInstance] irAdvance:-1];
                 break;
             case KEY_ACTION_SELECT_PANE_LEFT:
@@ -1581,6 +1576,11 @@ static NSString *kTmuxFontChanged = @"kTmuxFontChanged";
                 break;
         }
     } else {
+        // Key is not bound to an action.
+        if (!EXIT && tmuxMode_ == TMUX_GATEWAY) {
+            [self handleKeypressInTmuxGateway:unicode];
+            return;
+        }
         if (debugKeyDown) {
             NSLog(@"PTYSession keyDown no keybinding action");
         }
@@ -1747,7 +1747,7 @@ static NSString *kTmuxFontChanged = @"kTmuxFontChanged";
                           modflag, send_strlen, send_str[0]]);
                 if (debugKeyDown) {
                     DebugLog([NSString stringWithFormat:@"modflag = 0x%x; send_strlen = %d; send_str[0] = '%c (0x%x)'",
-                              modflag, send_strlen, send_str[0]]);
+                              modflag, send_strlen, send_str[0], send_str[0]]);
                 }
             }
 
@@ -1945,11 +1945,15 @@ static NSString *kTmuxFontChanged = @"kTmuxFontChanged";
     NSString* info = nil;
     if ([bestType isEqualToString:NSFilenamesPboardType]) {
         NSArray *filenames = [board propertyListForType:NSFilenamesPboardType];
-        if ([filenames count] > 0) {
-            info = [filenames componentsJoinedByString:@"\n"];
-            if ([info length] == 0) {
-                info = nil;
-            }
+        NSMutableArray *escapedFilenames = [NSMutableArray array];
+        for (NSString *filename in filenames) {
+            [escapedFilenames addObject:[filename stringWithEscapedShellCharacters]];
+        }
+        if (escapedFilenames.count > 0) {
+            info = [escapedFilenames componentsJoinedByString:@"\n"];
+        }
+        if ([info length] == 0) {
+            info = nil;
         }
     } else {
         info = [board stringForType:NSStringPboardType];
@@ -3778,7 +3782,7 @@ static long long timeInTenthsOfSeconds(struct timeval t)
     }
 }
 
-- (BOOL)tmuxSetSecureLogging:(BOOL)secureLogging {
+- (void)tmuxSetSecureLogging:(BOOL)secureLogging {
     tmuxSecureLogging_ = secureLogging;
 }
 

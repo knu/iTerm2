@@ -305,6 +305,7 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     firstMouseEventNumber_ = -1;
     fallbackFonts = [[NSMutableDictionary alloc] init];
 
+    dimmedColorCache_ = [[NSMutableDictionary alloc] init];
     [self setMarkedTextAttributes:
         [NSDictionary dictionaryWithObjectsAndKeys:
             defaultBGColor, NSBackgroundColorAttributeName,
@@ -429,10 +430,13 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     }
 
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [dimmedColorCache_ release];
+    [memoizedContrastingColor_ release];
     for (i = 0; i < 256; i++) {
         [colorTable[i] release];
     }
     [lastFlashUpdate_ release];
+    [cachedBackgroundColor_ release];
     [resultMap_ release];
     [findResults_ release];
     [findString_ release];
@@ -492,12 +496,14 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
 - (void)setUseBoldFont:(BOOL)boldFlag
 {
     useBoldFont = boldFlag;
+    [dimmedColorCache_ removeAllObjects];
     [self setNeedsDisplay:YES];
 }
 
 - (void)setUseBrightBold:(BOOL)flag
 {
     useBrightBold = flag;
+    [dimmedColorCache_ removeAllObjects];
     [self setNeedsDisplay:YES];
 }
 
@@ -524,6 +530,7 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
 - (void)setDimOnlyText:(BOOL)value
 {
     dimOnlyText_ = value;
+    [dimmedColorCache_ removeAllObjects];
     [[self superview] setNeedsDisplay:YES];
 }
 
@@ -588,6 +595,7 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     [defaultFGColor release];
     [color retain];
     defaultFGColor = color;
+    [dimmedColorCache_ removeAllObjects];
     [self setNeedsDisplay:YES];
 }
 
@@ -600,6 +608,9 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     BOOL isDark = ([self perceivedBrightness:color] < kBackgroundConsideredDarkThreshold);
     backgroundBrightness_ = PerceivedBrightness([color redComponent], [color greenComponent], [color blueComponent]);
     [scroller setHasDarkBackground:isDark];
+    [dimmedColorCache_ removeAllObjects];
+    [cachedBackgroundColor_ release];
+    cachedBackgroundColor_ = nil;
     [self setNeedsDisplay:YES];
 }
 
@@ -608,6 +619,7 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     [defaultBoldColor release];
     [color retain];
     defaultBoldColor = color;
+    [dimmedColorCache_ removeAllObjects];
     [self setNeedsDisplay:YES];
 }
 
@@ -616,6 +628,7 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     [defaultCursorColor release];
     [color retain];
     defaultCursorColor = color;
+    [dimmedColorCache_ removeAllObjects];
     [self setNeedsDisplay:YES];
 }
 
@@ -624,6 +637,7 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     [selectedTextColor release];
     [aColor retain];
     selectedTextColor = aColor;
+    [dimmedColorCache_ removeAllObjects];
     [self setNeedsDisplay:YES];
 }
 
@@ -632,6 +646,7 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     [cursorTextColor release];
     [aColor retain];
     cursorTextColor = aColor;
+    [dimmedColorCache_ removeAllObjects];
     [self setNeedsDisplay:YES];
 }
 
@@ -671,6 +686,7 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     [colorTable[theIndex] release];
     [theColor retain];
     colorTable[theIndex] = theColor;
+    [dimmedColorCache_ removeAllObjects];
     [self setNeedsDisplay:YES];
 }
 
@@ -723,7 +739,7 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     double r = [orig redComponent];
     double g = [orig greenComponent];
     double b = [orig blueComponent];
-
+    double alpha = [orig alphaComponent];
     // This algorithm limits the dynamic range of colors as well as brightening
     // them. Both attributes change in proportion to the dimmingAmount_.
 
@@ -735,24 +751,66 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
         return [NSColor colorWithCalibratedRed:(1 - dimmingAmount_) * r + dimmingAmount_ * kCenter
                                          green:(1 - dimmingAmount_) * g + dimmingAmount_ * kCenter
                                           blue:(1 - dimmingAmount_) * b + dimmingAmount_ * kCenter
-                                         alpha:[orig alphaComponent]];
+                                         alpha:alpha];
     } else {
         return [NSColor colorWithCalibratedRed:(1 - dimmingAmount_) * r + dimmingAmount_ * backgroundBrightness_
                                          green:(1 - dimmingAmount_) * g + dimmingAmount_ * backgroundBrightness_
                                           blue:(1 - dimmingAmount_) * b + dimmingAmount_ * backgroundBrightness_
-                                         alpha:[orig alphaComponent]];
+                                         alpha:alpha];
     }
 }
 
-- (NSColor*)colorForCode:(int)theIndex alternateSemantics:(BOOL)alt bold:(BOOL)isBold isBackground:(BOOL)isBackground
+// Provide a dimmed version of a color. It includes a caching optimization that
+// really helps when dimming is on.
+- (NSColor *)_dimmedColorForCode:(int)theIndex
+	      alternateSemantics:(BOOL)alt
+			    bold:(BOOL)isBold
+		      background:(BOOL)isBackground
 {
-    NSColor *theColor = [self _colorForCode:theIndex
-                         alternateSemantics:alt
-                                       bold:isBold];
+    if (dimmingAmount_ == 0) {
+        // No dimming: return plain-vanilla color.
+        NSColor *theColor = [self _colorForCode:theIndex
+                             alternateSemantics:alt
+                                           bold:isBold];
+        return theColor;
+    }
+
+    // Dimming is on. See if the dimmed version of the color is cached.
+    // The max number of keys is 2^11 so this won't take too much memory.
+    // This cache provides a 20%ish performance gain when dimming is on.
+    int key = (((theIndex & 0xff) << 3) |
+               ((alt ? 1 : 0) << 2) |
+               ((isBold ? 1 : 0) << 1) |
+               ((isBackground ? 1 : 0) << 0));
+    NSNumber *numKey = [NSNumber numberWithInt:key];
+    NSColor *cacheEntry = [dimmedColorCache_ objectForKey:numKey];
+    if (cacheEntry ) {
+        return cacheEntry;
+    } else {
+	NSColor *theColor = [self _colorForCode:theIndex
+			        alternateSemantics:alt
+					      bold:isBold];
+        NSColor *dimmedColor = [self _dimmedColorFrom:theColor];
+        [dimmedColorCache_ setObject:dimmedColor forKey:numKey];
+        return dimmedColor;
+    }
+}
+
+- (NSColor*)colorForCode:(int)theIndex
+      alternateSemantics:(BOOL)alt
+                    bold:(BOOL)isBold
+            isBackground:(BOOL)isBackground
+{
     if (isBackground && dimOnlyText_) {
+	NSColor *theColor = [self _colorForCode:theIndex
+			     alternateSemantics:alt
+					   bold:isBold];
         return theColor;
     } else {
-        return [self _dimmedColorFrom:theColor];
+        return [self _dimmedColorForCode:theIndex
+                      alternateSemantics:alt
+                                    bold:isBold
+                              background:isBackground];
     }
 }
 
@@ -766,6 +824,7 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     [selectionColor release];
     [aColor retain];
     selectionColor = aColor;
+    [dimmedColorCache_ removeAllObjects];
     [self setNeedsDisplay:YES];
 }
 
@@ -1558,9 +1617,9 @@ NSMutableArray* screens=0;
 {
     NSRect scrollRect;
 
-    scrollRect= [self visibleRect];
-    scrollRect.origin.y-= scrollRect.size.height - [[self enclosingScrollView] verticalPageScroll];
-    [self scrollRectToVisible: scrollRect];
+    scrollRect = [self visibleRect];
+    scrollRect.origin.y -= scrollRect.size.height - [[self enclosingScrollView] verticalPageScroll];
+    [self scrollRectToVisible:scrollRect];
 }
 
 - (void)scrollPageDown:(id)sender
@@ -1589,7 +1648,9 @@ NSMutableArray* screens=0;
     NSRect lastLine = [self visibleRect];
     lastLine.origin.y = ([dataSource numberOfLines] - 1) * lineHeight + [self excess] + imeOffset * lineHeight;
     lastLine.size.height = lineHeight;
-    [self scrollRectToVisible:lastLine];
+    if (!NSContainsRect(self.visibleRect, lastLine)) {
+        [self scrollRectToVisible:lastLine];
+    }
 }
 
 - (long long)absoluteScrollPosition
@@ -2191,7 +2252,7 @@ NSMutableArray* screens=0;
     keyIsARepeat = [event isARepeat];
     if (debugKeyDown) {
         NSLog(@"PTYTextView keyDown modflag=%d keycode=%d", modflag, (int)keyCode);
-        NSLog(@"prev=%@", prev);
+        NSLog(@"prev=%d", (int)prev);
         NSLog(@"hasActionableKeyMappingForEvent=%d", (int)[delegate hasActionableKeyMappingForEvent:event]);
         NSLog(@"modFlag & (NSNumericPadKeyMask | NSFUnctionKeyMask)=%d", (modflag & (NSNumericPadKeyMask | NSFunctionKeyMask)));
         NSLog(@"charactersIgnoringModififiers length=%d", (int)[[event charactersIgnoringModifiers] length]);
@@ -2766,26 +2827,27 @@ NSMutableArray* screens=0;
                                   y:(int)y
                           withWidth:(int)width
 {
-    if (startY < y) {
-        // Start of existing selection is before cursor.
-        if (startY > endY) {
-            // start is below end. advance start up to end.
-            startY = endY;
-            startX = 0;
-        }
-        endX = width;
-        endY = [self lineNumberWithEndOfWholeLineIncludingLine:y];
-    } else {
-        // end of existing selection is at or after the cursor
+    // Move startY or endY to include y.
+    endY = y;
+
+    // Bump start and end to include full lines, if needed.
+    if ([[PreferencePanel sharedInstance] tripleClickSelectsFullLines]) {
         if (startY < endY) {
-            // start of selection is before end of selection.
-            // advance start to end.
-            startY = endY;
-            startX = endX;
+            startY = [self lineNumberWithStartOfWholeLineIncludingLine:startY];
+            endY = [self lineNumberWithEndOfWholeLineIncludingLine:endY];
+        } else {
+            startY = [self lineNumberWithEndOfWholeLineIncludingLine:startY];
+            endY = [self lineNumberWithStartOfWholeLineIncludingLine:endY];
         }
-        // set end of selection to current line
+    }
+
+    // Ensure startX and endX are correct.
+    if (startY < endY) {
+        startX = 0;
+        endX = width;
+    } else {
+        startX = width;
         endX = 0;
-        endY = [self lineNumberWithStartOfWholeLineIncludingLine:y];
     }
 }
 
@@ -3274,7 +3336,13 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
         if (selectMode == SELECT_BOX) {
             theSelectedText = [self contentInBoxFromX:startX Y:startY ToX:endX Y:endY pad:NO];
         } else {
-            theSelectedText = [self contentFromX:startX Y:startY ToX:endX Y:endY pad:NO includeLastNewline:[[PreferencePanel sharedInstance] copyLastNewline]];
+            theSelectedText = [self contentFromX:startX
+                                               Y:startY
+                                             ToX:endX
+                                               Y:endY
+                                             pad:NO
+                              includeLastNewline:[[PreferencePanel sharedInstance] copyLastNewline]
+                          trimTrailingWhitespace:[[PreferencePanel sharedInstance] trimTrailingWhitespace]];
         }
         if ([theSelectedText length] > 0) {
             [self _dragText: theSelectedText forEvent: event];
@@ -3661,13 +3729,24 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
     }
 }
 
-- (NSString*)contentInBoxFromX:(int)startx Y:(int)starty ToX:(int)nonInclusiveEndx Y:(int)endy pad: (BOOL) pad
+- (NSString*)contentInBoxFromX:(int)startx
+                             Y:(int)starty
+                           ToX:(int)nonInclusiveEndx
+                             Y:(int)endy
+                           pad:(BOOL)pad
 {
     int i;
     int estimated_size = abs((endy-startx) * [dataSource width]) + abs(nonInclusiveEndx - startx);
+    const BOOL shouldTrim = [[PreferencePanel sharedInstance] trimTrailingWhitespace];
     NSMutableString* result = [NSMutableString stringWithCapacity:estimated_size];
     for (i = starty; i < endy; ++i) {
-        NSString* line = [self contentFromX:startx Y:i ToX:nonInclusiveEndx Y:i pad:pad];
+        NSString* line = [self contentFromX:startx
+                                          Y:i
+                                        ToX:nonInclusiveEndx
+                                          Y:i
+                                        pad:pad
+                         includeLastNewline:NO
+                     trimTrailingWhitespace:shouldTrim];
         [result appendString:line];
         if (i < endy-1) {
             [result appendString:@"\n"];
@@ -3676,12 +3755,25 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
     return result;
 }
 
+- (void)trimTrailingWhitespaceFromString:(NSMutableString *)string {
+    NSCharacterSet *nonWhitespaceSet = [[NSCharacterSet whitespaceCharacterSet] invertedSet];
+    NSRange rangeOfLastWantedCharacter = [string rangeOfCharacterFromSet:nonWhitespaceSet
+                                                                 options:NSBackwardsSearch];
+    if (rangeOfLastWantedCharacter.location == NSNotFound) {
+        [string deleteCharactersInRange:NSMakeRange(0, string.length)];
+    } else if (rangeOfLastWantedCharacter.location < string.length - 1) {
+        NSUInteger i = rangeOfLastWantedCharacter.location + 1;
+        [string deleteCharactersInRange:NSMakeRange(i, string.length - i)];
+    }
+}
+
 - (NSString *)contentFromX:(int)startx
                          Y:(int)starty
                        ToX:(int)nonInclusiveEndx
                          Y:(int)endy
                        pad:(BOOL)pad
         includeLastNewline:(BOOL)includeLastNewline
+    trimTrailingWhitespace:(BOOL)trimSelectionTrailingSpaces
 {
     int endx = nonInclusiveEndx-1;
     int width = [dataSource width];
@@ -3721,6 +3813,9 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
                             }
                         }
                         if (theLine[width].code == EOL_HARD) {
+                            if (trimSelectionTrailingSpaces) {
+                                [self trimTrailingWhitespaceFromString:result];
+                            }
                             if (includeLastNewline || y < endy) {
                                 [result appendString:@"\n"];
                             }
@@ -3734,6 +3829,9 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
                            theLine[width].code == EOL_HARD) {
                     // Hard line break
                     [result appendString:ScreenCharToStr(&theLine[x1])];
+                    if (trimSelectionTrailingSpaces) {
+                        [self trimTrailingWhitespaceFromString:result];
+                    }
                     [result appendString:@"\n"];  // hard break
                 } else {
                     // Normal character
@@ -3743,6 +3841,9 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
         }
     }
 
+    if (trimSelectionTrailingSpaces) {
+        [self trimTrailingWhitespaceFromString:result];
+    }
     return result;
 }
 
@@ -3757,7 +3858,8 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
                           ToX:nonInclusiveEndx
                             Y:endy
                           pad:pad
-           includeLastNewline:NO];
+           includeLastNewline:NO
+       trimTrailingWhitespace:NO];
 }
 
 static inline void appendToAttributedString(NSMutableAttributedString *target, NSString *source, NSDictionary *attributes)
@@ -3897,7 +3999,8 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
                                ToX:endX
                                  Y:endY
                                pad:pad
-                includeLastNewline:[[PreferencePanel sharedInstance] copyLastNewline]]);
+                includeLastNewline:[[PreferencePanel sharedInstance] copyLastNewline]
+            trimTrailingWhitespace:[[PreferencePanel sharedInstance] trimTrailingWhitespace]]);
     }
 }
 
@@ -3933,7 +4036,8 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
                           ToX:[dataSource width]
                             Y:[dataSource numberOfLines] - 1
                           pad:NO
-           includeLastNewline:YES];
+           includeLastNewline:YES
+       trimTrailingWhitespace:NO];
 }
 
 - (void)splitTextViewVertically:(id)sender
@@ -4034,10 +4138,10 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
 
 - (BOOL)_broadcastToggleable
 {
-    PseudoTerminal *pty = [[[dataSource session] tab] realParentWindow];
-    if ([pty broadcastMode] == BROADCAST_OFF && [[pty currentSession] TEXTVIEW] == self) {
-        return NO;
-    }
+    // There used to be a restriction that you could not toggle broadcasting on
+    // the current session if no others were on, but that broke the feature for
+    // focus-follows-mouse users. This is an experiment to see if removing that
+    // restriction works. 9/8/12
     return YES;
 }
 
@@ -4561,7 +4665,8 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
                                               ToX:[dataSource width]
                                                 Y:lineOffset + numLines - 1
                                                pad:NO
-                               includeLastNewline:YES]];
+                               includeLastNewline:YES
+                           trimTrailingWhitespace:NO]];
             break;
         case 1: // text selection
             [self printContent: [self selectedTextWithPad:NO]];
@@ -5135,6 +5240,7 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
 - (void)setTransparency:(double)fVal
 {
     transparency = fVal;
+    [dimmedColorCache_ removeAllObjects];
     [self setNeedsDisplay:YES];
 }
 
@@ -5146,22 +5252,30 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
 - (void)setBlend:(double)fVal
 {
     blend = MIN(MAX(0.3, fVal), 1);
+    [dimmedColorCache_ removeAllObjects];
     [self setNeedsDisplay:YES];
 }
 
 - (void)setSmartCursorColor:(BOOL)value
 {
     colorInvertedCursor = value;
+    [dimmedColorCache_ removeAllObjects];
 }
 
 - (void)setMinimumContrast:(double)value
 {
     minimumContrast_ = value;
+    [memoizedContrastingColor_ release];
+    memoizedContrastingColor_ = nil;
+    [dimmedColorCache_ removeAllObjects];
 }
 
 - (void)setDimmingAmount:(double)value
 {
     dimmingAmount_ = value;
+    [cachedBackgroundColor_ release];
+    cachedBackgroundColor_ = nil;
+    [dimmedColorCache_ removeAllObjects];
     [[self superview] setNeedsDisplay:YES];
 }
 
@@ -5396,6 +5510,18 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     findCursorView_ = nil;
 }
 
+// The background color is cached separately from other dimmed colors because
+// it may be used with different alpha values than foreground colors.
+- (NSColor *)cachedDimmedBackgroundColorWithAlpha:(double)alpha
+{
+    if (!cachedBackgroundColor_ || cachedBackgroundColorAlpha_ != alpha) {
+        [cachedBackgroundColor_ release];
+        cachedBackgroundColor_ = [[self _dimmedColorFrom:[[self defaultBGColor] colorWithAlphaComponent:alpha]] retain];
+        cachedBackgroundColorAlpha_ = alpha;
+    }
+    return cachedBackgroundColor_;
+}
+
 - (void)drawFlippedBackground:(NSRect)bgRect toPoint:(NSPoint)dest
 {
     PTYScrollView* scrollView = (PTYScrollView*)[self enclosingScrollView];
@@ -5407,21 +5533,21 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
                                                              useTransparency:[self useTransparency]];
                 // Blend default bg color
         NSColor *aColor = [self colorForCode:ALTSEM_BG_DEFAULT
-                                                  alternateSemantics:YES
-                                                                                bold:NO
-                                                                isBackground:YES];
-                [[aColor colorWithAlphaComponent:1 - blend] set];
-                NSRectFillUsingOperation(NSMakeRect(dest.x + bgRect.origin.x,
-                                                                                        dest.y + bgRect.origin.y,
-                                                                                        bgRect.size.width,
-                                                                                        bgRect.size.height), NSCompositeSourceOver);
+                              alternateSemantics:YES
+					    bold:NO
+				    isBackground:YES];
+	[[aColor colorWithAlphaComponent:1 - blend] set];
+        NSRectFillUsingOperation(NSMakeRect(dest.x + bgRect.origin.x,
+                                            dest.y + bgRect.origin.y,
+                                            bgRect.size.width,
+                                            bgRect.size.height), NSCompositeSourceOver);
     } else {
-                // No bg image
+        // No bg image
         if (![self useTransparency]) {
             alpha = 1;
         }
         if (!dimOnlyText_) {
-            [[self _dimmedColorFrom:[[self defaultBGColor] colorWithAlphaComponent:alpha]] set];
+            [[self cachedDimmedBackgroundColorWithAlpha:alpha] set];
         } else {
             [[[self defaultBGColor] colorWithAlphaComponent:alpha] set];
         }
@@ -5440,24 +5566,24 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
         [(PTYScrollView *)[self enclosingScrollView] drawBackgroundImageRect:bgRect
                                                                      toPoint:dest
                                                              useTransparency:[self useTransparency]];
-                // Blend default bg color over bg iamge.
-                NSColor *aColor = [self colorForCode:ALTSEM_BG_DEFAULT
-                                                  alternateSemantics:YES
-                                                                                bold:NO
-                                                                isBackground:YES];
-                [[aColor colorWithAlphaComponent:1 - blend] set];
-                NSRectFillUsingOperation(NSMakeRect(dest.x + bgRect.origin.x,
-                                                                                        dest.y + bgRect.origin.y,
-                                                                                        bgRect.size.width,
-                                                                                        bgRect.size.height),
-                                                                 NSCompositeSourceOver);
+	// Blend default bg color over bg image.
+        NSColor *aColor = [self colorForCode:ALTSEM_BG_DEFAULT
+                              alternateSemantics:YES
+					    bold:NO
+				    isBackground:YES];
+        [[aColor colorWithAlphaComponent:1 - blend] set];
+        NSRectFillUsingOperation(NSMakeRect(dest.x + bgRect.origin.x,
+                                            dest.y + bgRect.origin.y,
+                                            bgRect.size.width,
+                                            bgRect.size.height),
+                                 NSCompositeSourceOver);
     } else {
         // No bg image
         if (![self useTransparency]) {
             alpha = 1;
         }
         if (!dimOnlyText_) {
-            [[self _dimmedColorFrom:[[self defaultBGColor] colorWithAlphaComponent:alpha]] set];
+            [[self cachedDimmedBackgroundColorWithAlpha:alpha] set];
         } else {
             [[[self defaultBGColor] colorWithAlphaComponent:alpha] set];
         }
@@ -5474,19 +5600,19 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
         [(PTYScrollView *)[self enclosingScrollView] drawBackgroundImageRect:bgRect
                                                              useTransparency:[self useTransparency]];
                 // Blend default bg color over bg iamge.
-                NSColor *aColor = [self colorForCode:ALTSEM_BG_DEFAULT
-                                                  alternateSemantics:YES
-                                                                                bold:NO
-                                                                isBackground:YES];
-                [[aColor colorWithAlphaComponent:1 - blend] set];
-                NSRectFillUsingOperation(bgRect, NSCompositeSourceOver);
+        NSColor *aColor = [self colorForCode:ALTSEM_BG_DEFAULT
+                          alternateSemantics:YES
+                                        bold:NO
+                                isBackground:YES];
+	[[aColor colorWithAlphaComponent:1 - blend] set];
+	NSRectFillUsingOperation(bgRect, NSCompositeSourceOver);
     } else {
         // Either draw a normal bg or, if transparency is off, blend the default bg color over the bg image.
         if (![self useTransparency]) {
             alpha = 1;
         }
         if (!dimOnlyText_) {
-            [[self _dimmedColorFrom:[[self defaultBGColor] colorWithAlphaComponent:alpha]] set];
+            [[self cachedDimmedBackgroundColorWithAlpha:alpha] set];
         } else {
             [[[self defaultBGColor] colorWithAlphaComponent:alpha] set];
         }
@@ -5650,7 +5776,13 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     x2 = tmpX+1;
     y2 = tmpY;
 
-    return [self contentFromX:x1 Y:yStart ToX:x2 Y:y2 pad:YES includeLastNewline:NO];
+    return [self contentFromX:x1
+                            Y:yStart
+                          ToX:x2
+                            Y:y2
+                          pad:YES
+           includeLastNewline:NO
+       trimTrailingWhitespace:NO];
 }
 
 - (double)perceivedBrightness:(NSColor*) c
@@ -5961,15 +6093,20 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     return [self _dimmedColorFrom:[NSColor colorWithCalibratedRed:x1 green:x2 blue:x3 alpha:a]];
 }
 
-- (NSColor*)color:(NSColor*)mainColor withContrastAgainst:(NSColor*)otherColor
+- (NSColor*)computeColorWithComponents:(double *)mainComponents
+         withContrastAgainstComponents:(double *)otherComponents
 {
-    double r = [mainColor redComponent];
-    double g = [mainColor greenComponent];
-    double b = [mainColor blueComponent];
+    const double r = mainComponents[0];
+    const double g = mainComponents[1];
+    const double b = mainComponents[2];
+    const double a = mainComponents[3];
+
+    const double or = otherComponents[0];
+    const double og = otherComponents[1];
+    const double ob = otherComponents[2];
+
     double mainBrightness = PerceivedBrightness(r, g, b);
-    double otherBrightness = PerceivedBrightness([otherColor redComponent],
-                                                 [otherColor greenComponent],
-                                                 [otherColor blueComponent]);
+    double otherBrightness = PerceivedBrightness(or, og, ob);
     CGFloat brightnessDiff = fabs(mainBrightness - otherBrightness);
     if (brightnessDiff < minimumContrast_) {
         CGFloat error = fabs(brightnessDiff - minimumContrast_);
@@ -5999,11 +6136,43 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
         return [self colorWithRed:r
                             green:g
                              blue:b
-                            alpha:[mainColor alphaComponent]
+                            alpha:a
                     withPerceivedBrightness:targetBrightness];
     } else {
-        return mainColor;
+        return nil;
     }
+}
+
+- (NSColor*)color:(NSColor*)mainColor withContrastAgainst:(NSColor*)otherColor
+{
+    double rgb[4];
+    rgb[0] = [mainColor redComponent];
+    rgb[1] = [mainColor greenComponent];
+    rgb[2] = [mainColor blueComponent];
+    rgb[3] = [mainColor alphaComponent];
+
+    double orgb[3];
+    orgb[0] = [otherColor redComponent];
+    orgb[1] = [otherColor greenComponent];
+    orgb[2] = [otherColor blueComponent];
+
+    if (!memoizedContrastingColor_ ||
+	memcmp(rgb, memoizedMainRGB_, sizeof(rgb)) ||
+	memcmp(orgb, memoizedOtherRGB_, sizeof(orgb))) {
+	// We memoize the last returned value not so much for performance as for
+	// consistency. It ensures that two consecutive calls for the same color
+	// will return the same pointer. See the note at the call site in
+	// _constructRuns:theLine:...matches:.
+        [memoizedContrastingColor_ release];
+        memoizedContrastingColor_ = [[self computeColorWithComponents:rgb
+					withContrastAgainstComponents:orgb] retain];
+        if (!memoizedContrastingColor_) {
+            memoizedContrastingColor_ = [mainColor retain];
+        }
+        memmove(memoizedMainRGB_, rgb, sizeof(rgb));
+        memmove(memoizedOtherRGB_, orgb, sizeof(orgb));
+    }
+    return memoizedContrastingColor_;
 }
 
 - (int)_constructRuns:(NSPoint)initialPoint
@@ -6062,6 +6231,7 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
         if (bgselected) {
             // Is a selection.
             isSelection = YES;
+	    // NOTE: This could be optimized by caching the color.
             thisCharColor = [self _dimmedColorFrom:selectedTextColor];
         } else {
             // Not a selection.
@@ -6139,6 +6309,12 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
 
             // Create a new run if needed (this char differs from the previous
             // or is the first in this line or comes after a nondrawable.
+	    // NOTE: The test for thisCharColor == prevCharColor is a gross hack
+	    // but I think it's safe. Obviously, == is a wrong way to compare
+	    // colors. Because colors are never dealloced within this loop,
+	    // pointer equality implies color equality (but color equality does NOT
+	    // imply pointer equality). This is fragile but fast and any false
+	    // negatives have a minor performance hit.
             BOOL beginNewRun = NO;
             if (!havePrevChar ||
                 prevCharRunType == MULTIPLE_CODE_POINT_RUN ||
@@ -7812,7 +7988,8 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
                                   ToX:[dataSource width]
                                     Y:y
                                   pad:YES
-                   includeLastNewline:NO];
+                   includeLastNewline:NO
+               trimTrailingWhitespace:NO];
     const char* utf8 = [lineContents UTF8String];
     for (int i = 0; utf8[i]; ++i) {
         if (utf8[i] != ' ') {
@@ -8110,6 +8287,7 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
 {
     advancedFontRendering = [[PreferencePanel sharedInstance] advancedFontRendering];
     strokeThickness = [[PreferencePanel sharedInstance] strokeThickness];
+    [dimmedColorCache_ removeAllObjects];
     [self setNeedsDisplay:YES];
     [self setDimOnlyText:[[PreferencePanel sharedInstance] dimOnlyText]];
 }

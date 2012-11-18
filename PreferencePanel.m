@@ -143,6 +143,11 @@ static float versionNumber;
     if (userDefaults) {
         [self loadPrefs];
     }
+    // Override smooth scrolling, which breaks various things (such as the
+    // assumption, when detectUserScroll is called, that scrolls happen
+    // immediately), and generally sucks with a terminal.
+    [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"NSScrollAnimationEnabled"];
+
     [self readPreferences];
     if (defaultEnableBonjour == YES) {
         [[ITAddressBookMgr sharedInstance] locateBonjourServices];
@@ -1512,6 +1517,16 @@ static float versionNumber;
 - (float)fsTabDelay
 {
     return defaultFsTabDelay;
+}
+
+- (BOOL)trimTrailingWhitespace
+{
+    NSNumber *n = [[NSUserDefaults standardUserDefaults] objectForKey:@"TrimWhitespaceOnCopy"];
+    if (n) {
+        return [n boolValue];
+    } else {
+        return YES;
+    }
 }
 
 - (BOOL)advancedFontRendering

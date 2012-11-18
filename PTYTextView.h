@@ -136,7 +136,9 @@ typedef struct PTYFontInfo PTYFontInfo;
     VT100Screen *dataSource;
     id _delegate;
 
-    //selection
+    // selection goes from startX,startY to endX,endY. The end may be before or after the start.
+    // While the selection is being made (the mouse was clicked and is being dragged) the end
+    // position moves with the cursor.
     int startX, startY, endX, endY;
     int oldStartX, oldStartY, oldEndX, oldEndY;
     char oldSelectMode;
@@ -174,6 +176,19 @@ typedef struct PTYFontInfo PTYFontInfo;
     NSRect _trackingRect;
 
     NSMutableDictionary* fallbackFonts;
+
+    // Maps a NSNumber int consisting of color index, alternate fg semantics
+    // flag, bold flag, and background flag to NSColor*s.
+    NSMutableDictionary* dimmedColorCache_;
+
+    // Dimmed background color with alpha.
+    NSColor *cachedBackgroundColor_;
+    double cachedBackgroundColorAlpha_;  // cached alpha value (comparable to another double)
+
+    // Previuos contrasting color returned
+    NSColor *memoizedContrastingColor_;
+    double memoizedMainRGB_[4];  // rgba for "main" color memoized.
+    double memoizedOtherRGB_[3];  // rgb for "other" color memoized.
 
     // Indicates if a selection that scrolls the window is in progress.
     // Negative value: scroll up.
@@ -374,13 +389,14 @@ typedef struct PTYFontInfo PTYFontInfo;
 - (void)placeCursorOnCurrentLineWithEvent:(NSEvent *)event;
 
 
-- (NSString *)contentFromX:(int)startx Y:(int)starty ToX:(int)endx Y:(int)endy pad: (BOOL) pad;
 - (NSString *)contentFromX:(int)startx
                          Y:(int)starty
                        ToX:(int)nonInclusiveEndx
                          Y:(int)endy
                        pad:(BOOL)pad
-        includeLastNewline:(BOOL)includeLastNewline;
+        includeLastNewline:(BOOL)includeLastNewline
+    trimTrailingWhitespace:(BOOL)trimSelectionTrailingSpaces;
+
 - (NSAttributedString *)attributedContentFromX:(int)startx Y:(int)starty ToX:(int)endx Y:(int)endy pad: (BOOL) pad;
 - (NSString*)contentInBoxFromX:(int)startx Y:(int)starty ToX:(int)nonInclusiveEndx Y:(int)endy pad: (BOOL) pad;
 - (NSString *)selectedText;
