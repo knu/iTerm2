@@ -102,6 +102,10 @@ typedef enum { CURSOR_UNDERLINE, CURSOR_VERTICAL, CURSOR_BOX } ITermCursorType;
 
     IBOutlet NSTextField* tagFilter;
 
+    // Allow clipboard access by terminal applications
+    IBOutlet NSButton *allowClipboardAccessFromTerminal;
+    BOOL defaultAllowClipboardAccess;
+
     // Copy to clipboard on selection
     IBOutlet NSButton *selectionCopiesText;
     BOOL defaultCopySelection;
@@ -276,6 +280,10 @@ typedef enum { CURSOR_UNDERLINE, CURSOR_VERTICAL, CURSOR_BOX } ITermCursorType;
     // smart window placement
     IBOutlet NSButton *smartPlacement;
     BOOL defaultSmartPlacement;
+
+    // Adjust window size when changing font size
+    IBOutlet NSButton *adjustWindowForFontSizeChange;
+    BOOL defaultAdjustWindowForFontSizeChange;
 
     // Delay before showing tabs in fullscreen mode
     IBOutlet NSSlider* fsTabDelay;
@@ -474,6 +482,7 @@ typedef enum { CURSOR_UNDERLINE, CURSOR_VERTICAL, CURSOR_BOX } ITermCursorType;
     IBOutlet NSButton* flashingBell;
     IBOutlet NSButton* xtermMouseReporting;
     IBOutlet NSButton* disableSmcupRmcup;
+    IBOutlet NSButton* allowTitleReporting;
     IBOutlet NSButton* disablePrinting;
     IBOutlet NSButton* scrollbackWithStatusBar;
     IBOutlet NSButton* scrollbackInAlternateScreen;
@@ -483,6 +492,7 @@ typedef enum { CURSOR_UNDERLINE, CURSOR_VERTICAL, CURSOR_BOX } ITermCursorType;
     IBOutlet NSComboBox* terminalType;
     IBOutlet NSPopUpButton* characterEncoding;
     IBOutlet NSButton* setLocaleVars;
+    IBOutlet NSButton* useCanonicalParser;
 
     // Keyboard tab
     IBOutlet NSTableView* keyMappings;
@@ -622,6 +632,8 @@ typedef enum {
 - (void)windowWillLoad;
 - (void)windowWillClose:(NSNotification *)aNotification;
 - (void)windowDidBecomeKey:(NSNotification *)aNotification;
+- (BOOL)allowClipboardAccess;
+- (void)setAllowClipboardAccess:(BOOL)flag;
 - (BOOL)copySelection;
 - (BOOL)copyLastNewline;
 - (void)setCopySelection:(BOOL)flag;
@@ -656,6 +668,7 @@ typedef enum {
 - (BOOL)showPaneTitles;
 - (BOOL)disableFullscreenTransparency;
 - (BOOL)smartPlacement;
+- (BOOL)adjustWindowForFontSizeChange;
 - (BOOL)windowNumber;
 - (BOOL)jobName;
 - (BOOL)showBookmarkName;

@@ -95,7 +95,7 @@ NSWindowDelegate,
     ////////////////////////////////////////////////////////////////////////////
     // Tab View
     // The tabview occupies almost the entire window. Each tab has an identifier
-    // which is a PTYSession.
+    // which is a PTYTab.
     PTYTabView *TABVIEW;
 
     // This is a sometimes-visible control that shows the tabs and lets the user
@@ -253,9 +253,13 @@ NSWindowDelegate,
 	// Recalls if this was a hide-after-opening window.
 	BOOL hideAfterOpening_;
 
-        // After dealloc starts, the restorable state should not be updated
-        // because the window's state is a shambles.
-        BOOL doNotSetRestorableState_;
+    // After dealloc starts, the restorable state should not be updated
+    // because the window's state is a shambles.
+    BOOL doNotSetRestorableState_;
+
+	// For top/left/bottom of screen windows, this is the size it really wants to be.
+	// Initialized to -1 in -init and then set to the size of the first session forever.
+    int desiredRows_, desiredColumns_;
 }
 
 + (void)drawArrangementPreview:(NSDictionary*)terminalArrangement
@@ -822,7 +826,7 @@ NSWindowDelegate,
 
 - (int)_screenAtPoint:(NSPoint)p;
 
-// Allocate a new session and assign it a bookmark.
+// Allocate a new session and assign it a bookmark. Returns a retained object.
 - (PTYSession*)newSessionWithBookmark:(Profile*)bookmark;
 
 // Execute the bookmark command in this session.

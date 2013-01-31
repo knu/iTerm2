@@ -67,6 +67,8 @@ static const int kMaxSelectedTextLinesForCustomActions = 100;
 #import "ITAddressBookMgr.h"
 #import "PointerController.h"
 #import "PointerPrefsController.h"
+#import "CharacterRun.h"
+#import "ThreeFingerTapGestureRecognizer.h"
 
 #include <sys/time.h>
 #include <math.h>
@@ -127,45 +129,6 @@ static const int kDragThreshold = 3;
 static const double kBackgroundConsideredDarkThreshold = 0.5;
 static const int kBroadcastMargin = 4;
 static const int kCoprocessMargin = 4;
-// When drawing lines, we use this structure to represent a run of cells  of
-// the same font, color, and attributes.
-typedef enum {
-  SINGLE_CODE_POINT_RUN,    // A run of cells with one code point each.
-  MULTIPLE_CODE_POINT_RUN   // A single cell with multiple code points.
-} RunType;
-
-typedef struct {
-    RunType runType;
-    PTYFontInfo* fontInfo;
-    NSColor* color;
-
-    // Should bold text be rendered by drawing text twice with a 1px shift?
-    BOOL fakeBold;
-
-    // Pointer to code point(s) for this char.
-    unichar* codes;
-
-    // Number of codes that 'codes' points to.
-    int numCodes;
-
-    // Advances for each code.
-    CGSize* advances;
-
-    // Number of advances.
-    int numAdvances;
-
-    // x pixel coordinate for this cell.
-    CGFloat x;
-
-    // Pointer to glyphs for these chars (single code point only)
-    CGGlyph* glyphs;
-
-    // Number of glyphs.
-    int numGlyphs;
-
-    // Should this run be anti-aliased.
-    BOOL antiAlias;
-} CharRun;
 
 static NSCursor* textViewCursor;
 static NSCursor* xmrCursor;
@@ -228,17 +191,12 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     NSPoint hotspot = NSMakePoint(4, 5);
 
     NSBundle* bundle = [NSBundle bundleForClass:[self class]];
-    NSString* ibarFile = [bundle
-                          pathForResource:@"IBarCursor"
-                          ofType:@"png"];
-    NSImage* image = [[[NSImage alloc] initWithContentsOfFile:ibarFile] autorelease];
+
+    NSImage* image = [NSImage imageNamed:@"IBarCursor"];
 
     textViewCursor = [[NSCursor alloc] initWithImage:image hotSpot:hotspot];
 
-    NSString* xmrFile = [bundle
-                          pathForResource:@"IBarCursorXMR"
-                          ofType:@"png"];
-    NSImage* xmrImage = [[[NSImage alloc] initWithContentsOfFile:xmrFile] autorelease];
+    NSImage* xmrImage = [NSImage imageNamed:@"IBarCursorXMR"];
 
     xmrCursor = [[NSCursor alloc] initWithImage:xmrImage hotSpot:hotspot];
 
@@ -298,12 +256,15 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     return textViewCursor;
 }
 
+- (BOOL)useThreeFingerTapGestureRecognizer {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:@"ThreeFingerTapEmulatesThreeFingerClick"];
+}
+
 - (id)initWithFrame:(NSRect)aRect
 {
     self = [super initWithFrame: aRect];
     dataSource=_delegate=markedTextAttributes=NULL;
     firstMouseEventNumber_ = -1;
-    fallbackFonts = [[NSMutableDictionary alloc] init];
 
     dimmedColorCache_ = [[NSMutableDictionary alloc] init];
     [self setMarkedTextAttributes:
@@ -355,25 +316,65 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
 
     pointer_ = [[PointerController alloc] init];
     pointer_.delegate = self;
+    primaryFont = [[PTYFontInfo alloc] init];
+    secondaryFont = [[PTYFontInfo alloc] init];
 
     if ([pointer_ viewShouldTrackTouches]) {
+        DLog(@"Begin tracking touches in view %@", self);
         [self futureSetAcceptsTouchEvents:YES];
         [self futureSetWantsRestingTouches:YES];
+        if ([self useThreeFingerTapGestureRecognizer]) {
+            threeFingerTapGestureRecognizer_ = [[ThreeFingerTapGestureRecognizer alloc] initWithTarget:self
+                                                                                              selector:@selector(threeFingerTap:)];
+        }
+    } else {
+        DLog(@"Not tracking touches in view %@", self);
     }
 
     return self;
+}
+
+- (void)sendFakeThreeFingerClickDown:(BOOL)isDown basedOnEvent:(NSEvent *)event {
+    CGEventRef cgEvent = [event CGEvent];
+    CGEventRef fakeCgEvent = CGEventCreateMouseEvent(NULL,
+                                                     isDown ? kCGEventLeftMouseDown : kCGEventLeftMouseUp,
+                                                     CGEventGetLocation(cgEvent),
+                                                     2);
+    CGEventSetIntegerValueField(fakeCgEvent, kCGMouseEventClickState, 1);  // always a single click
+    CGEventSetFlags(fakeCgEvent, CGEventGetFlags(cgEvent));
+    NSEvent *fakeEvent = [NSEvent eventWithCGEvent:fakeCgEvent];
+    int saved = numTouches_;
+    numTouches_ = 3;
+    if (isDown) {
+        DLog(@"Emulate three finger click down");
+        [self mouseDown:fakeEvent];
+    } else {
+        DLog(@"Emulate three finger click up");
+        [self mouseUp:fakeEvent];
+    }
+    numTouches_ = saved;
+    CFRelease(fakeCgEvent);
+}
+
+- (void)threeFingerTap:(NSEvent *)ev {
+    [self sendFakeThreeFingerClickDown:YES basedOnEvent:ev];
+    [self sendFakeThreeFingerClickDown:NO basedOnEvent:ev];
 }
 
 - (void)touchesBeganWithEvent:(NSEvent *)ev
 {
     numTouches_ = [[ev futureTouchesMatchingPhase:1 | (1 << 2)/*NSTouchPhasesBegan | NSTouchPhasesStationary*/
                                            inView:self] count];
+    [threeFingerTapGestureRecognizer_ touchesBeganWithEvent:ev];
+    DLog(@"%@ Begin touch. numTouches_ -> %d", self, numTouches_);
 }
 
 - (void)touchesEndedWithEvent:(NSEvent *)ev
 {
     numTouches_ = [[ev futureTouchesMatchingPhase:(1 << 2)/*NSTouchPhasesStationary*/
                                            inView:self] count];
+    [threeFingerTapGestureRecognizer_ touchesEndedWithEvent:ev];
+    DLog(@"%@ End touch. numTouches_ -> %d", self, numTouches_);
 }
 
 - (BOOL)resignFirstResponder
@@ -446,14 +447,12 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     [selectionColor release];
     [defaultCursorColor release];
 
-    [self releaseFontInfo:&primaryFont];
-    [self releaseFontInfo:&secondaryFont];
+    [primaryFont release];
+    [secondaryFont release];
 
     [markedTextAttributes release];
     [markedText release];
 
-    [self releaseAllFallbackFonts];
-    [fallbackFonts release];
     [selectionScrollTimer release];
 
     [workingDirectoryAtLines release];
@@ -461,7 +460,9 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     [initialFindContext_.substring release];
 
     [pointer_ release];
-        [cursor_ release];
+    [cursor_ release];
+    [threeFingerTapGestureRecognizer_ disconnectTarget];
+    [threeFingerTapGestureRecognizer_ release];
 
     [super dealloc];
 }
@@ -522,9 +523,19 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     blinkAllowed_ = value;
 }
 
+- (void)markCursorAsDirty {
+    int cursorX = [dataSource cursorX] - 1;
+    int cursorY = [dataSource cursorY] - 1;
+    // Set a different bit for the cursor's dirty position because we don't
+    // want to save an instant replay from when only the cursor is dirty.
+    [dataSource setCharDirtyAtX:cursorX Y:cursorY value:2];
+}
+
 - (void)setCursorType:(ITermCursorType)value
 {
     cursorType_ = value;
+    [self markCursorAsDirty];
+    [self refresh];
 }
 
 - (void)setDimOnlyText:(BOOL)value
@@ -787,9 +798,9 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     if (cacheEntry ) {
         return cacheEntry;
     } else {
-	NSColor *theColor = [self _colorForCode:theIndex
-			        alternateSemantics:alt
-					      bold:isBold];
+        NSColor *theColor = [self _colorForCode:theIndex
+                             alternateSemantics:alt
+                                           bold:isBold];
         NSColor *dimmedColor = [self _dimmedColorFrom:theColor];
         [dimmedColorCache_ setObject:dimmedColor forKey:numKey];
         return dimmedColor;
@@ -802,9 +813,9 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
             isBackground:(BOOL)isBackground
 {
     if (isBackground && dimOnlyText_) {
-	NSColor *theColor = [self _colorForCode:theIndex
-			     alternateSemantics:alt
-					   bold:isBold];
+        NSColor *theColor = [self _colorForCode:theIndex
+                             alternateSemantics:alt
+                                           bold:isBold];
         return theColor;
     } else {
         return [self _dimmedColorForCode:theIndex
@@ -882,21 +893,22 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     verticalSpacing_ = verticalSpacing;
     charWidth = ceil(charWidthWithoutSpacing * horizontalSpacing);
     lineHeight = ceil(charHeightWithoutSpacing * verticalSpacing);
-    [self modifyFont:aFont baseline:baseline info:&primaryFont];
-    [self modifyFont:naFont baseline:baseline info:&secondaryFont];
 
-    // Cannot keep fallback fonts if the primary font changes because their
-    // baseline offsets are set by the primary font. It's simplest to remove
-    // them and then re-add them as needed.
-    [self releaseAllFallbackFonts];
+    primaryFont.font = aFont;
+    primaryFont.baselineOffset = baseline;
+    primaryFont.boldVersion = [primaryFont computedBoldVersion];
+
+    secondaryFont.font = naFont;
+    secondaryFont.baselineOffset = baseline;
+    secondaryFont.boldVersion = [secondaryFont computedBoldVersion];
 
     // Force the secondary font to use the same baseline as the primary font.
     secondaryFont.baselineOffset = primaryFont.baselineOffset;
     if (secondaryFont.boldVersion) {
         if (primaryFont.boldVersion) {
-            secondaryFont.boldVersion->baselineOffset = primaryFont.boldVersion->baselineOffset;
+            secondaryFont.boldVersion.baselineOffset = primaryFont.boldVersion.baselineOffset;
         } else {
-            secondaryFont.boldVersion->baselineOffset = secondaryFont.baselineOffset;
+            secondaryFont.boldVersion.baselineOffset = secondaryFont.baselineOffset;
         }
     }
 
@@ -1306,6 +1318,16 @@ NSMutableArray* screens=0;
                                    MAX(0, (xMax - xMin + 1) * charWidth),
                                    MAX(0, (yMax - yMin + 1) * lineHeight));
         return [NSValue valueWithRect:result];
+    } else if ([attribute isEqualToString:NSAccessibilityAttributedStringForRangeParameterizedAttribute]) {
+        //(NSAttributedString *) - substring; param:(NSValue * - rangeValue)
+        NSRange range = [(NSValue*)parameter rangeValue];
+        if (range.location == NSNotFound) {
+            return nil;
+        } else {
+            NSString *theString = [allText_ substringWithRange:range];
+            NSAttributedString *attributedString = [[[NSAttributedString alloc] initWithString:theString] autorelease];
+            return attributedString;
+        }
     } else {
         return [super accessibilityAttributeValue:attribute forParameter:parameter];
     }
@@ -1313,7 +1335,9 @@ NSMutableArray* screens=0;
 
 - (id)accessibilityAttributeValue:(NSString *)attribute forParameter:(id)parameter
 {
+    // NSLog(@"accessibilityAttributeValue:%@ forParameter:%@", attribute, parameter);
     id result = [self _accessibilityAttributeValue:attribute forParameter:parameter];
+    // NSLog(@"  returns %@", result);
     return result;
 }
 
@@ -1412,7 +1436,9 @@ NSMutableArray* screens=0;
 }
 
 - (id)accessibilityAttributeValue:(NSString *)attribute {
+    // NSLog(@"accessibilityAttributeValue:%@", attribute);
     id result = [self _accessibilityAttributeValue:attribute];
+    // NSLog(@"  returns %@", result);
     return result;
 }
 
@@ -1477,7 +1503,7 @@ NSMutableArray* screens=0;
 
     double excess = [self excess];
 
-    if ((int)(height + excess + imeOffset * lineHeight) != frame.size.height) {
+    if ((int)(height + excess + imeOffset * lineHeight) != (int)frame.size.height) {
         // The old iTerm code had a comment about a hack at this location
         // that worked around an (alleged) bug in NSClipView not respecting
         // setCopiesOnScroll:YES and a gross workaround. The workaround caused
@@ -2159,7 +2185,7 @@ NSMutableArray* screens=0;
     }
 
     if ([matches count]) {
-        NSArray* sortedMatches = [[[matches allValues] sortedArrayUsingSelector:@selector(compare:)] retain];
+        NSArray* sortedMatches = [[matches allValues] sortedArrayUsingSelector:@selector(compare:)];
         SmartMatch* bestMatch = [sortedMatches lastObject];
         if (debug) {
             NSLog(@"Select match with score %lf", bestMatch->score);
@@ -2230,6 +2256,13 @@ NSMutableArray* screens=0;
 
 - (void)keyDown:(NSEvent*)event
 {
+    static BOOL isFirstInteraction = YES;
+    if (isFirstInteraction) {
+        iTermApplicationDelegate *appDelegate = (iTermApplicationDelegate *)[[NSApplication sharedApplication] delegate];
+        [appDelegate userDidInteractWithASession];
+        isFirstInteraction = NO;
+    }
+
     BOOL debugKeyDown = [[[NSUserDefaults standardUserDefaults] objectForKey:@"DebugKeyDown"] boolValue];
 
     if (debugKeyDown) {
@@ -2289,7 +2322,7 @@ NSMutableArray* screens=0;
     }
     if (modflag & NSCommandKeyMask) {
         // You pressed cmd+something but it's not handled by the delegate. Going further would
-        // send the unmodified key to the terminal which doesn't make sense.adsjflsd
+        // send the unmodified key to the terminal which doesn't make sense.
         if (debugKeyDown) {
             NSLog(@"PTYTextView keyDown You pressed cmd+something");
         }
@@ -2361,7 +2394,7 @@ NSMutableArray* screens=0;
     return (keyIsARepeat);
 }
 
-// TODO: disable other, righxt mouse for inactive panes
+// TODO: disable other, right mouse for inactive panes
 - (void)otherMouseDown: (NSEvent *) event
 {
     NSPoint locationInWindow, locationInTextView;
@@ -2457,8 +2490,10 @@ NSMutableArray* screens=0;
         }
     }
     if (!mouseDownIsThreeFingerClick_) {
+        DLog(@"Sending third button press up to super");
         [super otherMouseUp:event];
     }
+    DLog(@"Sending third button press up to pointer controller");
     [pointer_ mouseUp:event withTouches:numTouches_];
 }
 
@@ -2513,6 +2548,10 @@ NSMutableArray* screens=0;
 
 - (void)rightMouseDown:(NSEvent*)event
 {
+    if ([threeFingerTapGestureRecognizer_ rightMouseDown:event]) {
+        DLog(@"Cancel right mouse down");
+        return;
+    }
     if ([pointer_ mouseDown:event withTouches:numTouches_]) {
         return;
     }
@@ -2554,6 +2593,10 @@ NSMutableArray* screens=0;
 
 - (void)rightMouseUp:(NSEvent *)event
 {
+    if ([threeFingerTapGestureRecognizer_ rightMouseUp:event]) {
+        return;
+    }
+
     if ([pointer_ mouseUp:event withTouches:numTouches_]) {
         return;
     }
@@ -2791,7 +2834,10 @@ NSMutableArray* screens=0;
 
 - (void)mouseDown:(NSEvent *)event
 {
-    DLog(@"Mouse Down with event %@", event);
+    if ([threeFingerTapGestureRecognizer_ mouseDown:event]) {
+        return;
+    }
+    DLog(@"Mouse Down on %@ with event %@, num touches=%d", self, event, numTouches_);
     if ([self mouseDownImpl:event]) {
         [super mouseDown:event];
     }
@@ -2869,19 +2915,64 @@ NSMutableArray* screens=0;
     endY = y;
 }
 
+// Emulates a third mouse button event (up or down, based on 'isDown').
+// Requires a real mouse event 'event' to build off of. This has the side
+// effect of setting mouseDownIsThreeFingerClick_, which (when set) indicates
+// that the current mouse-down state is "special" and disables certain actions
+// such as dragging.
+- (void)emulateThirdButtonPressDown:(BOOL)isDown withEvent:(NSEvent *)event {
+    if (isDown) {
+        mouseDownIsThreeFingerClick_ = isDown;
+        DLog(@"emulateThirdButtonPressDown - set mouseDownIsThreeFingerClick=YES");
+    }
+    CGEventRef cgEvent = [event CGEvent];
+    CGEventRef fakeCgEvent = CGEventCreateMouseEvent(NULL,
+                                                     isDown ? kCGEventOtherMouseDown : kCGEventOtherMouseUp,
+                                                     CGEventGetLocation(cgEvent),
+                                                     2);
+    CGEventSetIntegerValueField(fakeCgEvent, kCGMouseEventClickState, [event clickCount]);
+    CGEventSetFlags(fakeCgEvent, CGEventGetFlags(cgEvent));
+    NSEvent *fakeEvent = [NSEvent eventWithCGEvent:fakeCgEvent];
+    int saved = numTouches_;
+    numTouches_ = 1;
+    if (isDown) {
+        DLog(@"Emulate third button press down");
+        [self otherMouseDown:fakeEvent];
+    } else {
+        DLog(@"Emulate third button press up");
+        [self otherMouseUp:fakeEvent];
+    }
+    numTouches_ = saved;
+    CFRelease(fakeCgEvent);
+    if (!isDown) {
+        mouseDownIsThreeFingerClick_ = isDown;
+        DLog(@"emulateThirdButtonPressDown - set mouseDownIsThreeFingerClick=NO");
+    }
+}
+
 // Returns yes if [super mouseDown:event] should be run by caller.
 - (BOOL)mouseDownImpl:(NSEvent*)event
 {
+    const BOOL altPressed = ([event modifierFlags] & NSAlternateKeyMask) != 0;
+    const BOOL cmdPressed = ([event modifierFlags] & NSCommandKeyMask) != 0;
+    const BOOL shiftPressed = ([event modifierFlags] & NSShiftKeyMask) != 0;
+    const BOOL ctrlPressed = ([event modifierFlags] & NSControlKeyMask) != 0;
+    if (gDebugLogging && altPressed && cmdPressed && shiftPressed && ctrlPressed) {
+        // Dump view hierarchy
+        NSBeep();
+        [[iTermController sharedInstance] dumpViewHierarchy];
+        return NO;
+    }
     [pointer_ notifyLeftMouseDown];
     mouseDownIsThreeFingerClick_ = NO;
+    DLog(@"mouseDownImpl - set mouseDownIsThreeFingerClick=NO");
     if (([event modifierFlags] & kDragPaneModifiers) == kDragPaneModifiers) {
         [[MovePaneController sharedInstance] beginDrag:[dataSource session]];
         return NO;
     }
     if (numTouches_ == 3) {
         if ([[PreferencePanel sharedInstance] threeFingerEmulatesMiddle]) {
-            mouseDownIsThreeFingerClick_ = YES;
-            [self otherMouseDown:event];
+            [self emulateThirdButtonPressDown:YES withEvent:event];
         } else {
             // Perform user-defined gesture action, if any
             [pointer_ mouseDown:event withTouches:numTouches_];
@@ -2893,9 +2984,6 @@ NSMutableArray* screens=0;
         [pointer_ mouseDown:event withTouches:numTouches_];
         return NO;
     }
-    const BOOL altPressed = ([event modifierFlags] & NSAlternateKeyMask) != 0;
-    const BOOL cmdPressed = ([event modifierFlags] & NSCommandKeyMask) != 0;
-    const BOOL shiftPressed = ([event modifierFlags] & NSShiftKeyMask) != 0;
 
     dragOk_ = YES;
     PTYTextView* frontTextView = [[iTermController sharedInstance] frontTextView];
@@ -2937,6 +3025,8 @@ NSMutableArray* screens=0;
         if (ry < 0) {
             ry = -1;
         }
+        lastReportedX_ = rx;
+        lastReportedY_ = ry;
         VT100Terminal *terminal = [dataSource terminal];
         PTYSession* session = [dataSource session];
 
@@ -3105,11 +3195,13 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
 
 - (void)mouseUp:(NSEvent *)event
 {
-    DLog(@"mouseUp");
+    if ([threeFingerTapGestureRecognizer_ mouseUp:event]) {
+        return;
+    }
+    DLog(@"Mouse Up on %@ with event %@, numTouches=%d", self, event, numTouches_);
     firstMouseEventNumber_ = -1;  // Synergy seems to interfere with event numbers, so reset it here.
     if (mouseDownIsThreeFingerClick_) {
-        [self otherMouseUp:nil];
-        mouseDownIsThreeFingerClick_ = NO;
+        [self emulateThirdButtonPressDown:NO withEvent:event];
         return;
     } else if (numTouches_ == 3 && mouseDown) {
         // Three finger tap is valid but not emulating middle button
@@ -3155,6 +3247,8 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
         if (ry < 0) {
             ry = -1;
         }
+        lastReportedX_ = rx;
+        lastReportedY_ = ry;
         VT100Terminal *terminal = [dataSource terminal];
         PTYSession* session = [dataSource session];
 
@@ -3299,25 +3393,29 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
         if (ry < 0) {
             ry = -1;
         }
-        VT100Terminal *terminal = [dataSource terminal];
-        PTYSession* session = [dataSource session];
+        if (rx != lastReportedX_ || ry != lastReportedY_) {
+            lastReportedX_ = rx;
+            lastReportedY_ = ry;
+            VT100Terminal *terminal = [dataSource terminal];
+            PTYSession* session = [dataSource session];
 
-        switch ([terminal mouseMode]) {
-            case MOUSE_REPORTING_BUTTON_MOTION:
-            case MOUSE_REPORTING_ALL_MOTION:
-                [session writeTask:[terminal mouseMotion:MOUSE_BUTTON_LEFT
-                                           withModifiers:[event modifierFlags]
-                                                     atX:rx
-                                                       Y:ry]];
-            case MOUSE_REPORTING_NORMAL:
-                DebugLog([NSString stringWithFormat:@"Mouse drag. startx=%d starty=%d, endx=%d, endy=%d", startX, startY, endX, endY]);
-                return;
-                break;
+            switch ([terminal mouseMode]) {
+                case MOUSE_REPORTING_BUTTON_MOTION:
+                case MOUSE_REPORTING_ALL_MOTION:
+                    [session writeTask:[terminal mouseMotion:MOUSE_BUTTON_LEFT
+                                               withModifiers:[event modifierFlags]
+                                                         atX:rx
+                                                           Y:ry]];
+                case MOUSE_REPORTING_NORMAL:
+                    DebugLog([NSString stringWithFormat:@"Mouse drag. startx=%d starty=%d, endx=%d, endy=%d", startX, startY, endX, endY]);
+                    return;
+                    break;
 
-            case MOUSE_REPORTING_NONE:
-            case MOUSE_REPORTING_HILITE:
-                // fall through
-                break;
+                case MOUSE_REPORTING_NONE:
+                case MOUSE_REPORTING_HILITE:
+                    // fall through
+                    break;
+            }
         }
     }
 
@@ -3555,7 +3653,9 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
     }
     [self setNeedsDisplay:YES];
     NSMenu *menu = [self menuForEvent:nil];
+    openingContextMenu_ = YES;
     [NSMenu popUpContextMenu:menu withEvent:event forView:self];
+    openingContextMenu_ = NO;
 }
 
 - (void)extendSelectionWithEvent:(NSEvent *)event
@@ -4214,7 +4314,7 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
                 NSLog(@"Components for %@ are %@", regex, components);
                 NSArray *actions = [SmartSelectionController actionsInRule:rule];
                 for (NSDictionary *action in actions) {
-                    SEL mySelector = @selector(bogusSelector:);
+                    SEL mySelector;
                     // The selector's name must begin with contextMenuAction to
                     // pass validateMenuItem.
                     switch ([ContextMenuActionPrefsController actionForActionDict:action]) {
@@ -5298,7 +5398,19 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
 {
     NSString *copyString;
 
-    copyString = [self selectedText];
+    if (openingContextMenu_) {
+        // It is agonizingly slow to copy hundreds of thousands of lines just because the context
+        // menu is opening. Services use this to get access to the clipboard contents but
+        // it's lousy to hang for a few minutes for a feature that won't be used very much, esp. for
+        // such large selections.
+        int savedEndY = endY;
+        const int maxLinesToWrite = 10000;
+        endY = MIN(startY + maxLinesToWrite, endY);
+        copyString = [self selectedText];
+        endY = savedEndY;
+    } else {
+        copyString = [self selectedText];
+    }
 
     if (copyString && [copyString length]>0) {
         [pboard declareTypes: [NSArray arrayWithObject: NSStringPboardType] owner: self];
@@ -5797,13 +5909,6 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
 //
 @implementation PTYTextView (Private)
 
-- (BOOL)_font:(NSFont*)theFont hasGlyphsForCharacters:(unichar*)chars count:(int)count
-{
-    CGGlyph tempGlyphs[count];
-    return CTFontGetGlyphsForCharacters((CTFontRef)theFont, chars, tempGlyphs,
-                                        count);
-}
-
 - (PTYFontInfo*)getFontForChar:(UniChar)ch
                      isComplex:(BOOL)complex
                     renderBold:(BOOL*)renderBold
@@ -5815,30 +5920,28 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     if (!usePrimary && !complex) {
         // Try to use the primary font for non-ascii characters, but only
         // if it has the glyph.
-        usePrimary = [self _font:primaryFont.font
-                        hasGlyphsForCharacters:&ch
-                           count:1];
+        usePrimary = [primaryFont hasGlyphForCharacter:ch];
     }
 
     if (usePrimary) {
         if (isBold) {
             theFont = primaryFont.boldVersion;
             if (!theFont) {
-                theFont = &primaryFont;
+                theFont = primaryFont;
                 *renderBold = YES;
             }
         } else {
-            theFont = &primaryFont;
+            theFont = primaryFont;
         }
     } else {
         if (isBold) {
             theFont = secondaryFont.boldVersion;
             if (!theFont) {
-                theFont = &secondaryFont;
+                theFont = secondaryFont;
                 *renderBold = YES;
             }
         } else {
-            theFont = &secondaryFont;
+            theFont = secondaryFont;
         }
     }
 
@@ -5854,7 +5957,7 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     BOOL isBold = c.bold;
     NSFont *font = [self getFontForChar:c.code
                               isComplex:c.complexChar
-                             renderBold:&isBold]->font;
+                             renderBold:&isBold].font;
 
     if (isBold) {
         font = [[NSFontManager sharedFontManager] convertFont: font
@@ -5915,118 +6018,6 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     } else {
         return NO;
     }
-}
-
-- (CharRun)_truncateRun:(CharRun*)run beforeIndex:(int)truncateBeforeIndex
-{
-    CharRun tailRun = *run;
-
-    for (int i = 0; i < truncateBeforeIndex; ++i) {
-        tailRun.x += run->advances[i].width;
-    }
-    tailRun.numCodes -= truncateBeforeIndex;
-    tailRun.numAdvances -= truncateBeforeIndex;
-    tailRun.numGlyphs -= truncateBeforeIndex;
-
-    tailRun.codes += truncateBeforeIndex;
-    tailRun.advances += truncateBeforeIndex;
-    tailRun.glyphs += truncateBeforeIndex;
-
-    run->numCodes = truncateBeforeIndex;
-    run->numAdvances = truncateBeforeIndex;
-    run->numGlyphs = truncateBeforeIndex;
-
-    return tailRun;
-}
-
-- (void)_setSubstituteFontInRun:(CharRun*)charRunArray
-{
-    // No valid glyphs in this run. Pick a new font and update the
-    // glyphs.
-    CFStringRef tempString = CFStringCreateWithCharactersNoCopy(0,
-                                                                charRunArray->codes,
-                                                                charRunArray->numCodes,
-                                                                kCFAllocatorNull);
-    CTFontRef substituteFont = CTFontCreateForString((CTFontRef)charRunArray->fontInfo->font,
-                                                     tempString,
-                                                     CFRangeMake(0, charRunArray->numCodes));
-    CFRelease(tempString);
-    if (substituteFont) {
-        PTYFontInfo* subFontInfo = [self getOrAddFallbackFont:(NSFont*)substituteFont];
-        CFRelease(substituteFont);
-        charRunArray->fontInfo = subFontInfo;
-    }
-}
-
-- (int)_setGlyphsInRun:(CharRun*)charRunArray
-{
-    CharRun* currentRun = charRunArray;
-    if (currentRun->runType == MULTIPLE_CODE_POINT_RUN) {
-        // These are complicated and glyphs are figured out later.
-        return 0;
-    }
-
-    int i = 0;
-    int newRuns = 0;
-    BOOL isOk;
-    isOk = CTFontGetGlyphsForCharacters((CTFontRef)currentRun->fontInfo->font,
-                                        currentRun->codes,
-                                        currentRun->glyphs,
-                                        currentRun->numCodes);
-    while (!isOk && i < currentRun->numCodes) {
-        // As long as this loop is running there are bogus glyphs in the current
-        // run. We'll try to isolate the first bad glyph in its own run, fix its
-        // font to something that (hopefully) can render it, and continue with
-        // the remainder of the run after that bad glyph.
-        //
-        // A faster algorithm would be possible if the font substitution
-        // algorithm were a bit smarter, but sometimes it goes down dead ends
-        // so the only way to make sure that it can render the max number of
-        // glyphs in a string is to substitute fonts for one glyph at a time.
-        //
-        // Example: given "U+239c U+23b7" in AndaleMono, the font substitution
-        // algorithm suggests HiraganoKaguGothicProN, which cannot render both
-        // glyphs. Ask it one at a time and you get Apple Symbols, which can
-        // render both.
-        for (i = 0; i < currentRun->numCodes; ++i) {
-            if (!currentRun->glyphs[i]) {
-                if (i > 0) {
-                    // Some glyph after the first is bad. Truncate the current
-                    // run to just the good glyphs. Set the currentRun to the
-                    // second half.
-                    CharRun suffixRun = [self _truncateRun:currentRun beforeIndex:i];
-                    charRunArray[++newRuns] = suffixRun;
-                    currentRun = &charRunArray[newRuns];
-                    i = 0;
-                    // We leave this block with currentRun having a bad first
-                    // glyph.
-                }
-
-                // The first glyph is bad. Truncate the current run to 1
-                // glyph and convert it to a MULTIPLE_CODE_POINT_RUN (though it's
-                // obviously only one code point, it uses NSAttributedString to
-                // render which is slow but can find the right font).
-                CharRun suffixRun = [self _truncateRun:currentRun beforeIndex:1];
-                currentRun->runType = MULTIPLE_CODE_POINT_RUN;
-
-                if (suffixRun.numCodes > 0) {
-                    // Append the remainder of the original run to the array of
-                    // runs and have the outer loop begin working on the suffix.
-                    charRunArray[++newRuns] = suffixRun;
-                    currentRun = &charRunArray[newRuns];
-                    i = 0;
-                    break;
-                } else {
-                    return newRuns;
-                }
-            }
-        }
-        isOk = CTFontGetGlyphsForCharacters((CTFontRef)currentRun->fontInfo->font,
-                                            currentRun->codes,
-                                            currentRun->glyphs,
-                                            currentRun->numCodes);
-    }
-    return newRuns;
 }
 
 - (NSColor*)colorWithRed:(double)r green:(double)g blue:(double)b alpha:(double)a withPerceivedBrightness:(CGFloat)t
@@ -6157,15 +6148,15 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     orgb[2] = [otherColor blueComponent];
 
     if (!memoizedContrastingColor_ ||
-	memcmp(rgb, memoizedMainRGB_, sizeof(rgb)) ||
-	memcmp(orgb, memoizedOtherRGB_, sizeof(orgb))) {
-	// We memoize the last returned value not so much for performance as for
-	// consistency. It ensures that two consecutive calls for the same color
-	// will return the same pointer. See the note at the call site in
-	// _constructRuns:theLine:...matches:.
+        memcmp(rgb, memoizedMainRGB_, sizeof(rgb)) ||
+        memcmp(orgb, memoizedOtherRGB_, sizeof(orgb))) {
+        // We memoize the last returned value not so much for performance as for
+        // consistency. It ensures that two consecutive calls for the same color
+        // will return the same pointer. See the note at the call site in
+        // _constructRuns:theLine:...matches:.
         [memoizedContrastingColor_ release];
         memoizedContrastingColor_ = [[self computeColorWithComponents:rgb
-					withContrastAgainstComponents:orgb] retain];
+                                        withContrastAgainstComponents:orgb] retain];
         if (!memoizedContrastingColor_) {
             memoizedContrastingColor_ = [mainColor retain];
         }
@@ -6175,55 +6166,41 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     return memoizedContrastingColor_;
 }
 
-- (int)_constructRuns:(NSPoint)initialPoint
-              theLine:(screen_char_t *)theLine
-      advancesStorage:(CGSize*)advancesStorage
-          codeStorage:(unichar*)codeStorage
-         glyphStorage:(CGGlyph*)glyphStorage
-                 runs:(CharRun*)runs
-             reversed:(BOOL)reversed
-           bgselected:(BOOL)bgselected
-                width:(const int)width
-           indexRange:(NSRange)indexRange
-              bgColor:(NSColor*)bgColor
-              matches:(NSData*)matches
+- (void)_constructRuns:(NSPoint)initialPoint
+               theLine:(screen_char_t *)theLine
+            sharedData:(SharedCharacterRunData *)sharedData
+                  runs:(NSMutableArray *)runs
+              reversed:(BOOL)reversed
+            bgselected:(BOOL)bgselected
+                 width:(const int)width
+            indexRange:(NSRange)indexRange
+               bgColor:(NSColor*)bgColor
+               matches:(NSData*)matches
 {
-    int numRuns = 0;
-    CharRun* currentRun = NULL;
-    int nextFreeAdvance = 0;
-    int nextFreeCode = 0;
-    int nextFreeGlyph = 0;
+    CharacterRun* currentRun = NULL;
     const char* matchBytes = [matches bytes];
+    int lastForegroundColor = -1;
+    int lastAlternateForegroundSemantics = -1;
+    int lastBold = 2;  // Bold is a one-bit field so it can never equal 2.
+    NSColor *lastColor = nil;
 
-    NSColor* prevCharColor = NULL;
-    RunType prevCharRunType = SINGLE_CODE_POINT_RUN;
-    BOOL prevCharFakeBold = NO;
-    PTYFontInfo* prevCharFont = nil;
+    CharacterRun *prevChar = [[[CharacterRun alloc] init] autorelease];
     BOOL havePrevChar = NO;
     CGFloat curX = initialPoint.x;
-    BOOL prevCharAntiAlias = NO;
-
-    for (int i = indexRange.location;
-         i < indexRange.location + indexRange.length;
-         i++) {
+    CharacterRun *thisChar = [[[CharacterRun alloc] init] autorelease];
+    for (int i = indexRange.location; i < indexRange.location + indexRange.length; i++) {
         if (theLine[i].code == DWC_RIGHT) {
             continue;
         }
         BOOL doubleWidth = i < width - 1 && (theLine[i + 1].code == DWC_RIGHT);
-
-        NSColor* thisCharColor = NULL;
-        RunType thisCharRunType;
         unichar thisCharUnichar = 0;
         NSString* thisCharString = nil;
         CGFloat thisCharAdvance;
-        BOOL thisCharFakeBold = NO;
-        PTYFontInfo* thisCharFont = 0;
-        BOOL thisCharAntiAlias;
 
         if (theLine[i].code < 128 && !theLine[i].complexChar) {
-            thisCharAntiAlias = asciiAntiAlias;
+            thisChar.antiAlias = asciiAntiAlias;
         } else {
-            thisCharAntiAlias = nonasciiAntiAlias;
+            thisChar.antiAlias = nonasciiAntiAlias;
         }
         BOOL isSelection = NO;
 
@@ -6232,7 +6209,7 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
             // Is a selection.
             isSelection = YES;
 	    // NOTE: This could be optimized by caching the color.
-            thisCharColor = [self _dimmedColorFrom:selectedTextColor];
+            thisChar.color = [self _dimmedColorFrom:selectedTextColor];
         } else {
             // Not a selection.
             if (reversed &&
@@ -6240,17 +6217,29 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
                 theLine[i].foregroundColor == ALTSEM_FG_DEFAULT) {
                 // Has default foreground color so use background color.
                 if (!dimOnlyText_) {
-                    thisCharColor = [self _dimmedColorFrom:defaultBGColor];
+                    thisChar.color = [self _dimmedColorFrom:defaultBGColor];
                 } else {
-                    thisCharColor = defaultBGColor;
+                    thisChar.color = defaultBGColor;
                 }
             } else {
-                // Not reversed or not subject to reversing (only default
-                // foreground color is drawn in reverse video).
-                thisCharColor = [self colorForCode:theLine[i].foregroundColor
-                                alternateSemantics:theLine[i].alternateForegroundSemantics
-                                              bold:theLine[i].bold
-                                      isBackground:NO];
+                if (theLine[i].foregroundColor == lastForegroundColor &&
+                    theLine[i].alternateForegroundSemantics == lastAlternateForegroundSemantics &&
+                    theLine[i].bold == lastBold) {
+                    // Looking up colors with -colorForCode:... is expensive and it's common to
+                    // have consecutive characters with the same color.
+                    thisChar.color = lastColor;
+                } else {
+                    // Not reversed or not subject to reversing (only default
+                    // foreground color is drawn in reverse video).
+                    thisChar.color = [self colorForCode:theLine[i].foregroundColor
+                                     alternateSemantics:theLine[i].alternateForegroundSemantics
+                                                   bold:theLine[i].bold
+                                           isBackground:NO];
+                    lastForegroundColor = theLine[i].foregroundColor;
+                    lastAlternateForegroundSemantics = theLine[i].alternateForegroundSemantics;
+                    lastBold = theLine[i].bold;
+                    lastColor = thisChar.color;
+                }
             }
         }
 
@@ -6259,25 +6248,26 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
             int theIndex = i / 8;
             int mask = 1 << (i & 7);
             if (theIndex < [matches length] && matchBytes[theIndex] & mask) {
-                thisCharColor = [NSColor colorWithCalibratedRed:0 green:0 blue:0 alpha:1];
+                thisChar.color = [NSColor colorWithCalibratedRed:0 green:0 blue:0 alpha:1];
             }
         }
 
         if (minimumContrast_ > 0.001 && bgColor) {
-            thisCharColor = [self color:thisCharColor withContrastAgainst:bgColor];
+            thisChar.color = [self color:thisChar.color withContrastAgainst:bgColor];
         }
         BOOL drawable;
         if (blinkShow || ![self _charBlinks:theLine[i]]) {
             // This char is either not blinking or during the "on" cycle of the
-            // blink.
+            // blink. It should be drawn.
 
             // Set the character type and its unichar/string.
             if (theLine[i].complexChar) {
-                thisCharRunType = MULTIPLE_CODE_POINT_RUN;
+                thisChar.runType = kCharacterRunSingleCharWithCombiningMarks;
                 thisCharString = ComplexCharToStr(theLine[i].code);
                 drawable = YES;  // TODO: not all unicode is drawable
             } else {
-                thisCharRunType = SINGLE_CODE_POINT_RUN;
+                // Non-complex char
+                thisChar.runType = kCharacterRunMultipleSimpleChars;
 
                 // TODO: There are other spaces in unicode that should be supported.
                 drawable = (theLine[i].code != 0 &&
@@ -6290,7 +6280,8 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
                 }
             }
         } else {
-            thisCharRunType = SINGLE_CODE_POINT_RUN;
+            // Chatacter hidden because of blinking.
+            thisChar.runType = kCharacterRunMultipleSimpleChars;
             drawable = NO;
         }
 
@@ -6302,90 +6293,67 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
         }
 
         if (drawable) {
-            thisCharFakeBold = theLine[i].bold;
-            thisCharFont = [self getFontForChar:theLine[i].code
-                                      isComplex:theLine[i].complexChar
-                                     renderBold:&thisCharFakeBold];
+            BOOL fakeBold = theLine[i].bold;
+            thisChar.fontInfo = [self getFontForChar:theLine[i].code
+                                           isComplex:theLine[i].complexChar
+                                          renderBold:&fakeBold];
+            thisChar.fakeBold = fakeBold;
 
             // Create a new run if needed (this char differs from the previous
             // or is the first in this line or comes after a nondrawable.
-	    // NOTE: The test for thisCharColor == prevCharColor is a gross hack
-	    // but I think it's safe. Obviously, == is a wrong way to compare
-	    // colors. Because colors are never dealloced within this loop,
-	    // pointer equality implies color equality (but color equality does NOT
-	    // imply pointer equality). This is fragile but fast and any false
-	    // negatives have a minor performance hit.
+            // NOTE: The test for thisChar->color == prevChar->color is a gross hack
+            // but I think it's safe. Obviously, == is a wrong way to compare
+            // colors. Because colors are never dealloced within this loop,
+            // pointer equality implies color equality (but color equality does NOT
+            // imply pointer equality). This is fragile but fast and any false
+            // negatives have a minor performance hit.
             BOOL beginNewRun = NO;
-            if (!havePrevChar ||
-                prevCharRunType == MULTIPLE_CODE_POINT_RUN ||
-                thisCharRunType == MULTIPLE_CODE_POINT_RUN ||
-                thisCharFont != prevCharFont ||
-                thisCharColor != prevCharColor ||
-                thisCharFakeBold != prevCharFakeBold ||
-                thisCharAntiAlias != prevCharAntiAlias) {
+            if (!havePrevChar || ![thisChar isCompatibleWith:prevChar]) {
                 beginNewRun = YES;
                 havePrevChar = YES;
             }
             if (beginNewRun) {
                 if (currentRun) {
-                    nextFreeGlyph += currentRun->numGlyphs;
-                    nextFreeCode += currentRun->numCodes;
-                    nextFreeAdvance += currentRun->numAdvances;
-                    numRuns += [self _setGlyphsInRun:currentRun];
+                    [runs addObjectsFromArray:[currentRun runsWithGlyphs]];
                 }
-                currentRun = &runs[numRuns++];
                 // Begin a new run.
-                currentRun->runType = thisCharRunType;
-                currentRun->fontInfo = thisCharFont;
-                currentRun->color = thisCharColor;
-                currentRun->fakeBold = thisCharFakeBold;
-                currentRun->codes = codeStorage + nextFreeCode;
-                currentRun->numCodes = 0;
-                currentRun->advances = advancesStorage + nextFreeAdvance;
-                currentRun->numAdvances = 0;
-                currentRun->glyphs = glyphStorage + nextFreeGlyph;
-                currentRun->numGlyphs = 0;
-                currentRun->x = curX;
-                currentRun->antiAlias = thisCharAntiAlias;
+                currentRun = [[thisChar copy] autorelease];
+                [currentRun clearRange];
+                currentRun.sharedData = sharedData;
+                currentRun.x = curX;
             }
 
-            if (thisCharRunType == SINGLE_CODE_POINT_RUN) {
-                currentRun->codes[currentRun->numCodes++] = thisCharUnichar;
-                currentRun->numGlyphs++;
+            if (thisChar.runType == kCharacterRunMultipleSimpleChars) {
+                [currentRun appendCode:thisCharUnichar withAdvance:thisCharAdvance];
             } else {
-                int length = [thisCharString length];
-                [thisCharString getCharacters:currentRun->codes + currentRun->numCodes
-                                        range:NSMakeRange(0, length)];
-                currentRun->numCodes += length;
-                // numGlyphs intentionally stays at 0 because we don't get glyphs
-                // for multi-code point cells until drawing time.
+                [currentRun appendCodesFromString:thisCharString withAdvance:thisCharAdvance];
             }
-            currentRun->advances[currentRun->numAdvances].height = 0;
-            currentRun->advances[currentRun->numAdvances++].width = thisCharAdvance;
         } else {
             havePrevChar = NO;
+            thisChar.fakeBold = NO;
+            thisChar.fontInfo = nil;
         }
 
         // draw underline
+        // TODO(georgen): Move this to the drawing functions!
         if (theLine[i].underline && drawable) {
-            [thisCharColor set];
+            [thisChar.color set];
             NSRectFill(NSMakeRect(curX,
                                   initialPoint.y + lineHeight - 2,
                                   doubleWidth ? charWidth * 2 : charWidth,
                                   1));
         }
         curX += thisCharAdvance;
-        prevCharRunType = thisCharRunType;
-        prevCharFont = thisCharFont;
-        prevCharColor = thisCharColor;
-        prevCharFakeBold = thisCharFakeBold;
-        prevCharAntiAlias = thisCharAntiAlias;
+        prevChar.runType = thisChar.runType;
+        prevChar.fontInfo = thisChar.fontInfo;
+        prevChar.color = thisChar.color;
+        prevChar.fakeBold = thisChar.fakeBold;
+        prevChar.antiAlias = thisChar.antiAlias;
     }
 
     if (currentRun) {
-        numRuns += [self _setGlyphsInRun:currentRun];
+        [runs addObjectsFromArray:[currentRun runsWithGlyphs]];
     }
-    return numRuns;
 }
 
 - (void)_advancedDrawChar:(unichar*)codes
@@ -6402,13 +6370,13 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     NSDictionary* attrs;
     if (advancedFontRendering && antiAlias) {
         attrs = [NSDictionary dictionaryWithObjectsAndKeys:
-                               fontInfo->font, NSFontAttributeName,
+                               fontInfo.font, NSFontAttributeName,
                                color, NSForegroundColorAttributeName,
                                [NSNumber numberWithFloat:strokeThickness], NSStrokeWidthAttributeName,
                                nil];
     } else {
         attrs = [NSDictionary dictionaryWithObjectsAndKeys:
-                 fontInfo->font, NSFontAttributeName,
+                 fontInfo.font, NSFontAttributeName,
                  color, NSForegroundColorAttributeName,
                  nil];
     }
@@ -6434,7 +6402,7 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     // render properly. These are font-dependent. See tests/suits.txt for an
     // example.
     [attributedString drawWithRect:NSMakeRect(pos.x,
-                                              pos.y + fontInfo->baselineOffset + lineHeight,
+                                              pos.y + fontInfo.baselineOffset + lineHeight,
                                               width*2,
                                               lineHeight)
                            options:0];  // NSStringDrawingUsesLineFragmentOrigin
@@ -6442,7 +6410,7 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
         // If anti-aliased, drawing twice at the same position makes the strokes thicker.
         // If not anti-alised, draw one pixel to the right.
         [attributedString drawWithRect:NSMakeRect(pos.x + (antiAlias ? 0 : 1),
-                                                  pos.y + fontInfo->baselineOffset + lineHeight,
+                                                  pos.y + fontInfo.baselineOffset + lineHeight,
                                                   width*2,
                                                   lineHeight)
                                options:0];  // NSStringDrawingUsesLineFragmentOrigin
@@ -6450,97 +6418,89 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     [ctx restoreGraphicsState];
 }
 
-- (void)_drawComplexCharRun:(CharRun *)currentRun
+- (void)_drawComplexCharRun:(CharacterRun *)currentRun
                         ctx:(CGContextRef)ctx
                initialPoint:(NSPoint)initialPoint
                   antiAlias:(BOOL)antiAlias
 {
-    [self _advancedDrawChar:currentRun->codes
-                   numCodes:currentRun->numCodes
-                   fontInfo:currentRun->fontInfo
-                      color:currentRun->color
-                         at:NSMakePoint(currentRun->x,
+    [self _advancedDrawChar:[currentRun codes]
+                   numCodes:currentRun.range.length
+                   fontInfo:currentRun.fontInfo
+                      color:currentRun.color
+                         at:NSMakePoint(currentRun.x,
                                         initialPoint.y)
-                      width:currentRun->advances[0].width
-                   fakeBold:currentRun->fakeBold
+                      width:[currentRun advances][0].width
+                   fakeBold:currentRun.fakeBold
                   antiAlias:antiAlias];
 }
 
-- (void)_drawBasicCharRunAdvanced:(CharRun *)currentRun ctx:(CGContextRef)ctx initialPoint:(NSPoint)initialPoint
+- (void)_drawBasicCharRunAdvanced:(CharacterRun *)currentRun
+                              ctx:(CGContextRef)ctx
+                     initialPoint:(NSPoint)initialPoint
 {
-    CGFloat x = currentRun->x;
-    for (int i = 0; i < currentRun->numCodes; i++) {
-        [self _advancedDrawChar:&currentRun->codes[i]
+    CGFloat x = currentRun.x;
+    for (int i = 0; i < currentRun.range.length; i++) {
+        [self _advancedDrawChar:[currentRun codes] + i
                        numCodes:1
-                       fontInfo:currentRun->fontInfo
-                          color:currentRun->color
+                       fontInfo:currentRun.fontInfo
+                          color:currentRun.color
                              at:NSMakePoint(x,
                                             initialPoint.y)
-                          width:currentRun->advances[i].width
-                       fakeBold:currentRun->fakeBold
-                      antiAlias:currentRun->antiAlias];
-        x += currentRun->advances[i].width;
+                          width:[currentRun advances][i].width
+                       fakeBold:currentRun.fakeBold
+                      antiAlias:currentRun.antiAlias];
+        x += [currentRun advances][i].width;
     }
 }
 
-- (void)_drawBasicCharRun:(CharRun *)currentRun ctx:(CGContextRef)ctx initialPoint:(NSPoint)initialPoint
+- (void)_drawBasicCharRun:(CharacterRun *)currentRun
+                      ctx:(CGContextRef)ctx
+             initialPoint:(NSPoint)initialPoint
 {
-    const int width = [dataSource width];
-    CGGlyph glyphs[width];
+    CGGlyph *glyphs = [currentRun glyphs];
 
-    if (!CTFontGetGlyphsForCharacters((CTFontRef)currentRun->fontInfo->font,
-                                      currentRun->codes,
-                                      glyphs,
-                                      currentRun->numCodes)) {
-        // TODO
-        // One or more glyphs could not be found in this font. Try to
-        // find a font that can render them.
-    }
     CGContextSelectFont(ctx,
-                        [[currentRun->fontInfo->font fontName] UTF8String],
-                        [currentRun->fontInfo->font pointSize],
+                        [[currentRun.fontInfo.font fontName] UTF8String],
+                        [currentRun.fontInfo.font pointSize],
                         kCGEncodingMacRoman);
-    CGContextSetFillColorSpace(ctx, [[currentRun->color colorSpace] CGColorSpace]);
-    int componentCount = [currentRun->color numberOfComponents];
+    CGContextSetFillColorSpace(ctx, [[currentRun.color colorSpace] CGColorSpace]);
+    int componentCount = [currentRun.color numberOfComponents];
 
     CGFloat components[componentCount];
-    [currentRun->color getComponents:components];
+    [currentRun.color getComponents:components];
     CGContextSetFillColor(ctx, components);
 
-    double y = initialPoint.y + lineHeight + currentRun->fontInfo->baselineOffset;
-    int x = currentRun->x;
+    double y = initialPoint.y + lineHeight + currentRun.fontInfo.baselineOffset;
+    int x = currentRun.x;
     // Flip vertically and translate to (x, y).
     CGContextSetTextMatrix(ctx, CGAffineTransformMake(1.0,  0.0,
                                                       0.0, -1.0,
                                                       x,    y));
 
-    CGContextShowGlyphsWithAdvances(ctx, glyphs, currentRun->advances,
-                                    currentRun->numCodes);
+    CGContextShowGlyphsWithAdvances(ctx, glyphs, [currentRun advances], currentRun.range.length);
 
-    if (currentRun->fakeBold) {
+    if (currentRun.fakeBold) {
         // If anti-aliased, drawing twice at the same position makes the strokes thicker.
         // If not anti-alised, draw one pixel to the right.
         CGContextSetTextMatrix(ctx, CGAffineTransformMake(1.0,  0.0,
                                                           0.0, -1.0,
-                                                          x + (currentRun->antiAlias ? 0 : 1),    y));
+                                                          x + (currentRun.antiAlias ? 0 : 1),
+                                                          y));
 
-        CGContextShowGlyphsWithAdvances(ctx, glyphs, currentRun->advances,
-                                        currentRun->numCodes);
+        CGContextShowGlyphsWithAdvances(ctx, glyphs, [currentRun advances], currentRun.range.length);
     }
 }
 
-- (void)_drawRuns:(NSPoint)initialPoint runs:(CharRun*)runs numRuns:(int)numRuns
+- (void)_drawRuns:(NSPoint)initialPoint runs:(NSArray *)runs
 {
-    CharRun *currentRun;
     CGContextRef ctx = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
     CGContextSetTextDrawingMode(ctx, kCGTextFill);
 
-    for (int i = 0; i < numRuns; ++i) {
-        currentRun = &runs[i];
-        CGContextSetShouldAntialias(ctx, currentRun->antiAlias);
+    for (CharacterRun *currentRun in runs) {
+        CGContextSetShouldAntialias(ctx, currentRun.antiAlias);
 
-        if (currentRun->runType == SINGLE_CODE_POINT_RUN) {
-            if (currentRun->antiAlias && advancedFontRendering) {
+        if (currentRun.runType == kCharacterRunMultipleSimpleChars) {
+            if (currentRun.antiAlias && advancedFontRendering) {
                 [self _drawBasicCharRunAdvanced:currentRun
                                             ctx:ctx
                                    initialPoint:initialPoint];
@@ -6553,7 +6513,7 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
             [self _drawComplexCharRun:currentRun
                                   ctx:ctx
                          initialPoint:initialPoint
-                            antiAlias:currentRun->antiAlias];
+                            antiAlias:currentRun.antiAlias];
         }
     }
 }
@@ -6567,24 +6527,20 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
                       matches:(NSData*)matches
 {
     const int width = [dataSource width];
-    unichar codeStorage[width * kMaxParts];
-    CGSize advancesStorage[width];
-    CGGlyph glyphStorage[width * kMaxParts];
-    CharRun runs[width];
-    int numRuns = [self _constructRuns:initialPoint
-                               theLine:theLine
-                       advancesStorage:advancesStorage
-                           codeStorage:codeStorage
-                          glyphStorage:glyphStorage
-                                  runs:runs
-                              reversed:reversed
-                            bgselected:bgselected
-                                 width:width
-                            indexRange:indexRange
-                               bgColor:bgColor
-                               matches:matches];
+    SharedCharacterRunData *sharedData = [SharedCharacterRunData sharedCharacterRunDataWithCapacity:width];
+    NSMutableArray *runs = [NSMutableArray arrayWithCapacity:width];
+    [self _constructRuns:initialPoint
+                 theLine:theLine
+              sharedData:sharedData
+                    runs:runs
+                reversed:reversed
+              bgselected:bgselected
+                   width:width
+              indexRange:indexRange
+                 bgColor:bgColor
+                 matches:matches];
 
-    [self _drawRuns:initialPoint runs:runs numRuns:numRuns];
+    [self _drawRuns:initialPoint runs:runs];
 }
 
 - (void)_drawStripesInRect:(NSRect)rect
@@ -6823,15 +6779,15 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
                 NSRectFillUsingOperation(bgRect,
                                          hasBGImage ? NSCompositeSourceOver : NSCompositeCopy);
             } else if (hasBGImage) {
-                                // There is a bg image and no special background on it. Blend
-                                // in the default background color.
+                // There is a bg image and no special background on it. Blend
+                // in the default background color.
                 aColor = [self colorForCode:ALTSEM_BG_DEFAULT
                          alternateSemantics:YES
                                        bold:NO
                                isBackground:YES];
                 aColor = [aColor colorWithAlphaComponent:1 - blend];
                 [aColor set];
-                                NSRectFillUsingOperation(bgRect, NSCompositeSourceOver);
+                NSRectFillUsingOperation(bgRect, NSCompositeSourceOver);
             }
 
             // Draw red stripes in the background if sending input to all sessions
@@ -6879,31 +6835,27 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     temp.foregroundColor = fgColor;
     temp.alternateForegroundSemantics = fgAlt;
     temp.bold = fgBold;
-    CGSize advances[kMaxParts];
-    unichar codes[kMaxParts];
-    CGGlyph glyphs[kMaxParts];
-    CharRun runs[kMaxParts];
+    SharedCharacterRunData *sharedData = [SharedCharacterRunData sharedCharacterRunDataWithCapacity:kMaxParts];
+    NSMutableArray *runs = [NSMutableArray arrayWithCapacity:kMaxParts];
 
     // Draw the characters.
-    int numRuns = [self _constructRuns:NSMakePoint(X, Y)
-                               theLine:&temp
-                       advancesStorage:advances
-                           codeStorage:codes
-                          glyphStorage:glyphs
-                                  runs:runs
-                              reversed:NO
-                            bgselected:NO
-                                 width:[dataSource width]
-                            indexRange:NSMakeRange(0, 1)
-                               bgColor:nil
-                               matches:nil];
+    [self _constructRuns:NSMakePoint(X, Y)
+                 theLine:&temp
+              sharedData:sharedData
+                    runs:runs
+                reversed:NO
+              bgselected:NO
+                   width:[dataSource width]
+              indexRange:NSMakeRange(0, 1)
+                 bgColor:nil
+                 matches:nil];
     // If an override color is given, change the runs' colors.
     if (overrideColor) {
-        for (int i = 0; i < numRuns; ++i) {
-            runs[i].color = overrideColor;
+        for (CharacterRun *run in runs) {
+            run.color = overrideColor;
         }
     }
-    [self _drawRuns:NSMakePoint(X, Y) runs:runs numRuns:numRuns];
+    [self _drawRuns:NSMakePoint(X, Y) runs:runs];
 
     // draw underline
     if (screenChar.underline && screenChar.code) {
@@ -7001,10 +6953,8 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
         BOOL justWrapped = NO;
         BOOL foundCursor = NO;
         for (i = 0; i < len; ) {
-            CGSize advances[width * kMaxParts];
-            unichar codes[width * kMaxParts];
-            CGGlyph glyphs[width * kMaxParts];
-            CharRun runs[width * kMaxParts];
+            SharedCharacterRunData *sharedData = [SharedCharacterRunData sharedCharacterRunDataWithCapacity:width * kMaxParts];
+            NSMutableArray *runs = [NSMutableArray arrayWithCapacity:width * kMaxParts];
             const int remainingCharsInBuffer = len - i;
             const int remainingCharsInLine = width - xStart;
             int charsInLine = MIN(remainingCharsInLine,
@@ -7031,19 +6981,17 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
             NSRectFill(r);
 
             // Draw the characters.
-            int numRuns = [self _constructRuns:NSMakePoint(x, y)
-                                       theLine:buf
-                               advancesStorage:advances
-                                   codeStorage:codes
-                                  glyphStorage:glyphs
-                                          runs:runs
-                                      reversed:NO
-                                    bgselected:NO
-                                         width:[dataSource width]
-                                    indexRange:NSMakeRange(i, charsInLine)
-                                       bgColor:nil
-                                       matches:nil];
-            [self _drawRuns:NSMakePoint(x, y) runs:runs numRuns:numRuns];
+            [self _constructRuns:NSMakePoint(x, y)
+                         theLine:buf
+                      sharedData:sharedData
+                            runs:runs
+                        reversed:NO
+                      bgselected:NO
+                           width:[dataSource width]
+                      indexRange:NSMakeRange(i, charsInLine)
+                         bgColor:nil
+                         matches:nil];
+            [self _drawRuns:NSMakePoint(x, y) runs:runs];
 
             // Draw an underline.
             [defaultFGColor set];
@@ -7187,7 +7135,7 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     }
     if (1 - maxVal > bestDistance) {
         bestValue = 1;
-        bestDistance = 1 - maxVal;
+        bestDistance = 1 - maxVal;  // Analyzer warning is ok here; best to keep this to avoid future bugs.
     }
 
     return bestValue;
@@ -7565,7 +7513,9 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     if (!urlChars) {
         NSString *chars = [[NSUserDefaults standardUserDefaults] stringForKey:@"URLCharacterSet"];
         if (!chars) {
-            chars = @".?\\/:;%=&_-,+~#@!*'()|";
+            // Note: square brackets are included for ipv6 addresses like http://[2600:3c03::f03c:91ff:fe96:6a7a]/
+            chars = @".?\\/:;%=&_-,+~#@!*'()|[]";
+
         }
         urlChars = [[NSMutableCharacterSet characterSetWithCharactersInString:chars] retain];
         [urlChars formUnionWithCharacterSet:[NSCharacterSet alphanumericCharacterSet]];
@@ -7602,24 +7552,36 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     return YES;
 }
 
-- (NSMutableString *)_bruteforcePathFromBeforeString:(NSMutableString *)beforeString afterString:(NSMutableString *) afterString workingDirectory:(NSString *)workingDirectory {
+// Any sequence of words separated by spaces or tabs could be a filename. Search the neighborhood
+// of words for a valid filename. For example, beforeString could be "blah blah ~/Library/Appli" and
+// afterString could be "cation Support/Screen Sharing foo bar baz". This searches outward from
+// the point between beforeString and afterString to find a valid path, and would return
+// "~/Library/Application Support/Screen sharing" if such a file exists.
+- (NSMutableString *)_bruteforcePathFromBeforeString:(NSMutableString *)beforeString
+                                         afterString:(NSMutableString *)afterString
+                                    workingDirectory:(NSString *)workingDirectory {
     // Remove escaping slashes
     NSString *removeEscapingSlashes = @"\\\\([ \\(\\[\\]\\\\)])";
+
     [beforeString replaceOccurrencesOfRegex:removeEscapingSlashes withString:@"$1"];
     [afterString replaceOccurrencesOfRegex:removeEscapingSlashes withString:@"$1"];
-
+    beforeString = [[beforeString copy] autorelease];
     // The parens here cause "Foo bar" to become {"Foo", " ", "bar"} rather than {"Foo", "bar"}.
-    NSMutableArray *beforeChunks = [[beforeString componentsSeparatedByRegex:@"([\t ])"] mutableCopy];
-    NSMutableArray *afterChunks = [[afterString componentsSeparatedByRegex:@"([\t ])"] mutableCopy];
-
+    // Also, there is some kind of weird bug in regexkit. If you do [[beforeChunks mutableCopy] autoRelease]
+    // then the items in the array get over-released.
+    NSArray *beforeChunks = [beforeString componentsSeparatedByRegex:@"([\t ])"];
+    NSArray *afterChunks = [afterString componentsSeparatedByRegex:@"([\t ])"];
     NSMutableString *left = [NSMutableString string];
-
-    [beforeChunks addObject:@""]; // So there is an attempt with no left chunks
     // Bail after 100 iterations if nothing is still found.
     int limit = 100;
 
-    for (int i = [beforeChunks count] - 1; i >= 0; i--) {
-        [left insertString:[beforeChunks objectAtIndex:i] atIndex:0];
+    for (int i = [beforeChunks count]; i >= 0; i--) {
+        NSString *beforeChunk = @"";
+        if (i < [beforeChunks count]) {
+            beforeChunk = [beforeChunks objectAtIndex:i];
+        }
+
+        [left insertString:beforeChunk atIndex:0];
         NSMutableString *possiblePath = [NSMutableString stringWithString:left];
 
         // Do not search more than 10 chunks forward to avoid starving leftward search.
@@ -8278,7 +8240,14 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     BOOL track = [pointer_ viewShouldTrackTouches];
     [self futureSetAcceptsTouchEvents:track];
     [self futureSetWantsRestingTouches:track];
-    if (!track) {
+    [threeFingerTapGestureRecognizer_ release];
+    threeFingerTapGestureRecognizer_ = nil;
+    if (track) {
+        if ([self useThreeFingerTapGestureRecognizer]) {
+            threeFingerTapGestureRecognizer_ = [[ThreeFingerTapGestureRecognizer alloc] initWithTarget:self
+                                                                                              selector:@selector(threeFingerTap:)];
+        }
+    } else {
         numTouches_ = 0;
     }
 }
@@ -8290,72 +8259,6 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     [dimmedColorCache_ removeAllObjects];
     [self setNeedsDisplay:YES];
     [self setDimOnlyText:[[PreferencePanel sharedInstance] dimOnlyText]];
-}
-
-- (void)_modifyFont:(NSFont*)font baseline:(double)baseline into:(PTYFontInfo*)fontInfo
-{
-    if (fontInfo->font) {
-        [self releaseFontInfo:fontInfo];
-    }
-
-    fontInfo->font = font;
-    [fontInfo->font retain];
-    fontInfo->baselineOffset = baseline;
-    fontInfo->boldVersion = NULL;
-}
-
-- (void)modifyFont:(NSFont*)font baseline:(double)baseline info:(PTYFontInfo*)fontInfo
-{
-    [self _modifyFont:font baseline:baseline into:fontInfo];
-    NSFontManager* fontManager = [NSFontManager sharedFontManager];
-    NSFont* boldFont = [fontManager convertFont:font toHaveTrait:NSBoldFontMask];
-    if (boldFont && ([fontManager traitsOfFont:boldFont] & NSBoldFontMask)) {
-        fontInfo->boldVersion = (PTYFontInfo*)malloc(sizeof(PTYFontInfo));
-        fontInfo->boldVersion->font = NULL;
-        [self _modifyFont:boldFont baseline:baseline into:fontInfo->boldVersion];
-    }
-}
-
-- (PTYFontInfo*)getOrAddFallbackFont:(NSFont*)font
-{
-    NSString* name = [font fontName];
-    NSValue* entry = [fallbackFonts objectForKey:name];
-    if (entry) {
-        return [entry pointerValue];
-    } else {
-        PTYFontInfo* info = (PTYFontInfo*) malloc(sizeof(PTYFontInfo));
-        info->font = NULL;
-        [self _modifyFont:font baseline:primaryFont.baselineOffset into:info];
-
-        // Force this font to line up with the primary font's baseline.
-        info->baselineOffset = primaryFont.baselineOffset;
-        if (info->boldVersion) {
-            info->boldVersion->baselineOffset = primaryFont.baselineOffset;
-        }
-
-        [fallbackFonts setObject:[NSValue valueWithPointer:info] forKey:name];
-        return info;
-    }
-}
-
-- (void)releaseAllFallbackFonts
-{
-    NSEnumerator* enumerator = [fallbackFonts keyEnumerator];
-    id key;
-    while ((key = [enumerator nextObject])) {
-        PTYFontInfo* info = [[fallbackFonts objectForKey:key] pointerValue];
-        [self releaseFontInfo:info];
-        free(info);
-    }
-    [fallbackFonts removeAllObjects];
-}
-
-- (void)releaseFontInfo:(PTYFontInfo*)fontInfo
-{
-    [fontInfo->font release];
-    if (fontInfo->boldVersion) {
-        [self releaseFontInfo:fontInfo->boldVersion];
-    }
 }
 
 // WARNING: Do not call this function directly. Call
@@ -8709,11 +8612,7 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
         if ([self blinkingCursor] &&
             [[self window] isKeyWindow]) {
             // Blink flag flipped and there is a blinking cursor. Mark it dirty.
-            int cursorX = [dataSource cursorX] - 1;
-            int cursorY = [dataSource cursorY] - 1;
-            // Set a different bit for the cursor's dirty position because we don't
-            // want to save an instant replay from when only the cursor is dirty.
-            [dataSource setCharDirtyAtX:cursorX Y:cursorY value:2];
+            [self markCursorAsDirty];
         }
         DebugLog(@"time to redraw blinking text");
     }

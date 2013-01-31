@@ -249,7 +249,7 @@ const int kInterWidgetMargin = 10;
 
     starColumn_ = [[NSTableColumn alloc] initWithIdentifier:@"default"];
     [starColumn_ setEditable:NO];
-    [starColumn_ setDataCell:[[NSImageCell alloc] initImageCell:nil]];
+    [starColumn_ setDataCell:[[[NSImageCell alloc] initImageCell:nil] autorelease]];
     [starColumn_ setWidth:34];
     [tableView_ addTableColumn:starColumn_];
 
@@ -266,7 +266,7 @@ const int kInterWidgetMargin = 10;
 
     [tableView_ setDoubleAction:@selector(onDoubleClick:)];
 
-    NSTableHeaderView* header = [[NSTableHeaderView alloc] init];
+    NSTableHeaderView* header = [[[NSTableHeaderView alloc] init] autorelease];
     [tableView_ setHeaderView:header];
     [[tableColumn_ headerCell] setStringValue:@"Name"];
     [[starColumn_ headerCell] setStringValue:@"Default"];
@@ -394,33 +394,30 @@ const int kInterWidgetMargin = 10;
             return @"";
         }
     } else if (aTableColumn == starColumn_) {
-        // FIXME: use imageNamed and clean up drawing code
-        static NSImage* starImage;
-        if (!starImage) {
-            NSString* starFile = [[NSBundle bundleForClass:[self class]]
-                                  pathForResource:@"star-gold24"
-                                  ofType:@"png"];
-            starImage = [[NSImage alloc] initWithContentsOfFile:starFile];
-        }
-        NSImage *image = [[[NSImage alloc] init] autorelease];
-        NSSize size;
-        size.width = [aTableColumn width];
-        size.height = rowHeightWithTags_;
-        [image setSize:size];
-
-        NSRect rect;
-        rect.origin.x = 0;
-        rect.origin.y = 0;
-        rect.size = size;
-        [image lockFocus];
         if ([[bookmark objectForKey:KEY_GUID] isEqualToString:[[[ProfileModel sharedInstance] defaultBookmark] objectForKey:KEY_GUID]]) {
-            NSPoint destPoint;
-            destPoint.x = (size.width - [starImage size].width) / 2;
-            destPoint.y = (rowHeightWithTags_ - [starImage size].height) / 2;
-            [starImage drawAtPoint:destPoint fromRect:NSZeroRect operation:NSCompositeSourceOver fraction:1.0];
+            static NSImage* starImage;
+            if (!starImage) {
+                starImage = [[NSImage imageNamed:@"star"] retain];
+            }
+            CGFloat thisRowHeight;
+            if ([[bookmark objectForKey:KEY_TAGS] count]) {
+                thisRowHeight = rowHeightWithTags_;
+            } else {
+                thisRowHeight = normalRowHeight_;
+            }
+            CGFloat starHeight = normalRowHeight_ - 2;
+
+            NSImage *image = [[[NSImage alloc] init] autorelease];
+            [image setSize:NSMakeSize(thisRowHeight, thisRowHeight)];
+            [image lockFocus];
+            CGFloat margin = (thisRowHeight - starHeight) / 2;
+            NSRect dest = NSMakeRect(margin, margin, thisRowHeight - 2*margin, thisRowHeight - 2*margin);
+            [starImage drawInRect:dest fromRect:NSZeroRect operation:NSCompositeSourceOver fraction:1.0];
+            [image unlockFocus];
+            return image;
+        } else {
+            return nil;
         }
-        [image unlockFocus];
-        return image;
     }
 
     return @"";

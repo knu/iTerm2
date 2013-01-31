@@ -36,9 +36,9 @@
 
 - (void)loadImages
 {
-    _closeButton = [[NSImage alloc] initByReferencingFile:[[PSMTabBarControl bundle] pathForImageResource:@"AquaTabClose_Front"]];
-    _closeButtonDown = [[NSImage alloc] initByReferencingFile:[[PSMTabBarControl bundle] pathForImageResource:@"AquaTabClose_Front_Pressed"]];
-    _closeButtonOver = [[NSImage alloc] initByReferencingFile:[[PSMTabBarControl bundle] pathForImageResource:@"AquaTabClose_Front_Rollover"]];
+    _closeButton = [[NSImage imageNamed:@"AquaTabClose_Front"] retain];
+    _closeButtonDown = [[NSImage imageNamed:@"AquaTabClose_Front_Pressed"] retain];
+    _closeButtonOver = [[NSImage imageNamed:@"AquaTabClose_Front_Rollover"] retain];
 
     _addTabButtonImage = [[NSImage alloc] initByReferencingFile:[[PSMTabBarControl bundle] pathForImageResource:@"AquaTabNew"]];
     _addTabButtonPressedImage = [[NSImage alloc] initByReferencingFile:[[PSMTabBarControl bundle] pathForImageResource:@"AquaTabNewPressed"]];
@@ -366,7 +366,6 @@
 
     //draw the close button and icon combined
     if ([cell hasCloseButton] && ![cell isCloseButtonSuppressed]) {
-        NSSize closeButtonSize = NSZeroSize;
         NSRect closeButtonRect = [cell closeButtonRectForFrame:cellFrame];
         NSImage *closeButton = nil;
 
@@ -385,7 +384,6 @@
             closeButton = _closeButtonDown;
         }
 
-        closeButtonSize = [closeButton size];
         if ([controlView isFlipped]) {
             closeButtonRect.origin.y += closeButtonRect.size.height;
         }
@@ -740,7 +738,7 @@
         NSMutableParagraphStyle *centeredParagraphStyle = nil;
 
         if (!centeredParagraphStyle) {
-            centeredParagraphStyle = [[[NSParagraphStyle defaultParagraphStyle] mutableCopy] retain];
+            centeredParagraphStyle = [[[NSParagraphStyle defaultParagraphStyle] mutableCopy] autorelease];
             [centeredParagraphStyle setAlignment:NSCenterTextAlignment];
         }
 

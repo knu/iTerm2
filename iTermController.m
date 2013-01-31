@@ -52,6 +52,7 @@
 #import "GTMCarbonEvent.h"
 #import "iTerm.h"
 #import "WindowArrangements.h"
+#import "NSView+iTerm.h"
 
 //#define HOTKEY_WINDOW_VERBOSE_LOGGING
 #ifdef HOTKEY_WINDOW_VERBOSE_LOGGING
@@ -80,6 +81,26 @@ static NSInteger _compareEncodingByLocalizedName(id a, id b, void *unused)
     NSString *sa = [NSString localizedNameOfStringEncoding: [a unsignedIntValue]];
     NSString *sb = [NSString localizedNameOfStringEncoding: [b unsignedIntValue]];
     return [sa caseInsensitiveCompare: sb];
+}
+
+static BOOL UncachedIsMountainLionOrLater(void) {
+    unsigned major;
+    unsigned minor;
+    if ([iTermController getSystemVersionMajor:&major minor:&minor bugFix:nil]) {
+        return (major == 10 && minor >= 8) || (major > 10);
+    } else {
+        return NO;
+    }
+}
+
+BOOL IsMountainLionOrLater(void) {
+    static BOOL result;
+    static BOOL initialized;
+    if (!initialized) {
+        initialized = YES;
+        result = UncachedIsMountainLionOrLater();
+    }
+    return result;
 }
 
 static BOOL UncachedIsLionOrLater(void) {
@@ -307,7 +328,7 @@ static BOOL initDone = NO;
                                        otherButton:nil
                          informativeTextWithFormat:@""];
 
-    NSTextField *input = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 200, 24)];
+    NSTextField *input = [[[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 200, 24)] autorelease];
     [input setStringValue:defaultValue];
     [alert setAccessoryView:input];
     [alert layout];
@@ -884,7 +905,6 @@ static BOOL initDone = NO;
 
     // Where do we execute this command?
     BOOL toggle = NO;
-    BOOL makeKey = NO;
     if (theTerm == nil) {
         [iTermController switchToSpaceInBookmark:aDict];
         int windowType = [self _windowTypeForBookmark:aDict];
@@ -902,8 +922,6 @@ static BOOL initDone = NO;
                                                    isHotkey:disableLionFullscreen] autorelease];
 		if ([[aDict objectForKey:KEY_HIDE_AFTER_OPENING] boolValue]) {
 			[term hideAfterOpening];
-		} else {
-            makeKey = YES;
         }
         [self addInTerminals:term];
         if (disableLionFullscreen) {
@@ -915,7 +933,6 @@ static BOOL initDone = NO;
         }
     } else {
         term = theTerm;
-        makeKey = YES;
     }
 
     PTYSession* session = [term addNewSession:aDict];
@@ -1921,6 +1938,13 @@ static CGEventRef OnTappedEvent(CGEventTapProxy proxy, CGEventType type, CGEvent
                 [[NSWorkspace sharedWorkspace] openFile:@"/System/Library/PreferencePanes/UniversalAccessPref.prefPane"];
                 break;
         }
+    }
+}
+
+- (void)dumpViewHierarchy {
+    for (PseudoTerminal *term in [self terminals]) {
+        DebugLog([NSString stringWithFormat:@"Terminal %@ at %@", [term window], [NSValue valueWithRect:[[term window] frame]]]);
+        DebugLog([[[term window] contentView] hierarchicalDescription]);
     }
 }
 
