@@ -41,6 +41,7 @@
 #import "ColorsMenuItemView.h"
 #import "iTermFontPanel.h"
 #import "PseudoTerminalRestorer.h"
+#import "ToastWindowController.h"
 #include <unistd.h>
 #include <sys/stat.h>
 
@@ -291,8 +292,13 @@ static BOOL hasBecomeActive = NO;
     }
 }
 
+- (void)updateToggleToolbarTitle {
+    [toggleToolbar setTitle:[self toolbarShouldBeVisible] ? @"Hide Toolbar" : @"Show Toolbar"];
+}
+
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification
 {
+    [self updateToggleToolbarTitle];
     [iTermFontPanel makeDefault];
 
     finishedLaunching_ = YES;
@@ -444,6 +450,15 @@ static BOOL hasBecomeActive = NO;
     [[iTermController sharedInstance] stopEventTap];
 }
 
+- (PseudoTerminal *)terminalToOpenFileIn
+{
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"OpenFileInNewWindows"]) {
+        return nil;
+    } else {
+        return [self currentTerminal];
+    }
+}
+
 /**
  * The following applescript invokes this method before
  * _performStartupActivites is run and prevents it from being run. Scripts can
@@ -474,13 +489,13 @@ static BOOL hasBecomeActive = NO;
         [[NSFileManager defaultManager] fileExistsAtPath:filename isDirectory:&isDir];
         if (!isDir) {
             NSString *aString = [NSString stringWithFormat:@"%@; exit;\n", [filename stringWithEscapedShellCharacters]];
-            [[iTermController sharedInstance] launchBookmark:nil inTerminal:[self currentTerminal]];
+            [[iTermController sharedInstance] launchBookmark:nil inTerminal:[self terminalToOpenFileIn]];
             // Sleeping a while waiting for the login.
             sleep(1);
             [[[[iTermController sharedInstance] currentTerminal] currentSession] insertText:aString];
         } else {
             NSString *aString = [NSString stringWithFormat:@"cd %@\n", [filename stringWithEscapedShellCharacters]];
-            [[iTermController sharedInstance] launchBookmark:nil inTerminal:[self currentTerminal]];
+            [[iTermController sharedInstance] launchBookmark:nil inTerminal:[self terminalToOpenFileIn]];
             // Sleeping a while waiting for the login.
             sleep(1);
             [[[[iTermController sharedInstance] currentTerminal] currentSession] insertText:aString];
@@ -552,9 +567,13 @@ static BOOL hasBecomeActive = NO;
     // The screens' -visibleFrame is not updated when this is called. Doing a delayed perform with
     // a delay of 0 is usually, but not always enough. Not that 1 second is always enough either,
     // I suppose, but I don't want to die on this hill.
+    NSNumber *delay = [[NSUserDefaults standardUserDefaults] objectForKey:@"UpdateScreenParamsDelay"];
+    if (!delay) {
+        delay = [NSNumber numberWithInt:1];
+    }
     [self performSelector:@selector(updateScreenParametersInAllTerminals)
                withObject:nil
-               afterDelay:1];
+               afterDelay:[delay intValue]];
 }
 
 - (void)updateScreenParametersInAllTerminals {
@@ -656,6 +675,16 @@ static BOOL hasBecomeActive = NO;
         n = [NSNumber numberWithBool:NO];
     }
     return [n boolValue];
+}
+
+- (BOOL)toolbarShouldBeVisible {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:@"ToolbarVisible"];
+}
+
+- (void)setToolbarShouldBeVisible:(BOOL)value {
+    [[NSUserDefaults standardUserDefaults] setBool:value
+                                            forKey:@"ToolbarVisible"];
+    [self updateToggleToolbarTitle];
 }
 
 - (IBAction)toggleToolbelt:(id)sender
@@ -936,7 +965,89 @@ static BOOL hasBecomeActive = NO;
     [[[[iTermController sharedInstance] currentTerminal] currentSession] changeFontSizeDirection:-1];
 }
 
+- (NSString *)formatBytes:(double)bytes
+{
+    if (bytes < 1) {
+        return [NSString stringWithFormat:@"%.04lf bytes", bytes];
+    } else if (bytes < 1024) {
+        return [NSString stringWithFormat:@"%d bytes", (int)bytes];
+    } else if (bytes < 10240) {
+        return [NSString stringWithFormat:@"%.1lf kB", bytes / 10];
+    } else if (bytes < 1048576) {
+        return [NSString stringWithFormat:@"%d kB", (int)bytes / 1024];
+    } else if (bytes < 10485760) {
+        return [NSString stringWithFormat:@"%.1lf MB", bytes / 1048576];
+    } else if (bytes < 1024.0 * 1024.0 * 1024.0) {
+        return [NSString stringWithFormat:@"%.0lf MB", bytes / 1048576];
+    } else if (bytes < 1024.0 * 1024.0 * 1024.0 * 10) {
+        return [NSString stringWithFormat:@"%.1lf GB", bytes / (1024.0 * 1024.0 * 1024.0)];
+    } else {
+        return [NSString stringWithFormat:@"%.0lf GB", bytes / (1024.0 * 1024.0 * 1024.0)];
+    }
+}
 
+- (void)changePasteSpeedBy:(double)factor
+                  bytesKey:(NSString *)bytesKey
+              defaultBytes:(int)defaultBytes
+                  delayKey:(NSString *)delayKey
+              defaultDelay:(float)defaultDelay
+{
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    int bytes = [defaults integerForKey:bytesKey];
+    if (!bytes) {
+        bytes = defaultBytes;
+    }
+    float delay = [defaults floatForKey:delayKey];
+    if (!delay) {
+        delay = defaultDelay;
+    }
+    bytes *= factor;
+    delay /= factor;
+    bytes = MAX(1, MIN(1024 * 1024, bytes));
+    delay = MAX(0.001, MIN(10, delay));
+    [defaults setInteger:bytes forKey:bytesKey];
+    [defaults setFloat:delay forKey:delayKey];
+    double rate = bytes;
+    rate /= delay;
+    
+    [ToastWindowController showToastWithMessage:[NSString stringWithFormat:@"Pasting at up to %@/sec", [self formatBytes:rate]]];
+}
+
+- (IBAction)pasteFaster:(id)sender
+{
+    [self changePasteSpeedBy:1.5
+                    bytesKey:@"QuickPasteBytesPerCall"
+                defaultBytes:1024
+                    delayKey:@"QuickPasteDelayBetweenCalls"
+                defaultDelay:.01];
+}
+
+- (IBAction)pasteSlower:(id)sender
+{
+    [self changePasteSpeedBy:0.66
+                    bytesKey:@"QuickPasteBytesPerCall"
+                defaultBytes:1024
+                    delayKey:@"QuickPasteDelayBetweenCalls"
+                defaultDelay:.01];
+}
+
+- (IBAction)pasteSlowlyFaster:(id)sender
+{
+    [self changePasteSpeedBy:1.5
+                    bytesKey:@"SlowPasteBytesPerCall"
+                defaultBytes:16
+                    delayKey:@"SlowPasteDelayBetweenCalls"
+                defaultDelay:0.125];
+}
+
+- (IBAction)pasteSlowlySlower:(id)sender
+{
+    [self changePasteSpeedBy:0.66
+                    bytesKey:@"SlowPasteBytesPerCall"
+                defaultBytes:16
+                    delayKey:@"SlowPasteDelayBetweenCalls"
+                defaultDelay:0.125];
+}
 
 static void SwapDebugLog() {
         NSMutableString* temp;
@@ -1123,8 +1234,8 @@ int DebugLogImpl(const char *file, int line, const char *function, NSString* val
     [textview setFont:font nafont:nafont horizontalSpacing:hs verticalSpacing:vs];
         if ([sender isAlternate]) {
                 [frontTerminal sessionInitiatedResize:session
-                                                                                width:[[abEntry objectForKey:KEY_COLUMNS] intValue]
-                                                                           height:[[abEntry objectForKey:KEY_ROWS] intValue]];
+                                                width:[[abEntry objectForKey:KEY_COLUMNS] intValue]
+                                               height:[[abEntry objectForKey:KEY_ROWS] intValue]];
         }
 }
 

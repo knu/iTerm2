@@ -69,6 +69,7 @@ static const int kMaxSelectedTextLinesForCustomActions = 100;
 #import "PointerPrefsController.h"
 #import "CharacterRun.h"
 #import "ThreeFingerTapGestureRecognizer.h"
+#import "FutureMethods.h"
 
 #include <sys/time.h>
 #include <math.h>
@@ -348,10 +349,13 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
     if (isDown) {
         DLog(@"Emulate three finger click down");
         [self mouseDown:fakeEvent];
+        DLog(@"Returned from mouseDown");
     } else {
         DLog(@"Emulate three finger click up");
         [self mouseUp:fakeEvent];
+        DLog(@"Returned from mouseDown");
     }
+    DLog(@"Restore numTouches to saved value of %d", saved);
     numTouches_ = saved;
     CFRelease(fakeCgEvent);
 }
@@ -375,6 +379,13 @@ static CGFloat PerceivedBrightness(CGFloat r, CGFloat g, CGFloat b) {
                                            inView:self] count];
     [threeFingerTapGestureRecognizer_ touchesEndedWithEvent:ev];
     DLog(@"%@ End touch. numTouches_ -> %d", self, numTouches_);
+}
+
+- (void)touchesCancelledWithEvent:(NSEvent *)event
+{
+    numTouches_ = 0;
+    [threeFingerTapGestureRecognizer_ touchesCancelledWithEvent:event];
+    DLog(@"%@ Cancel touch. numTouches_ -> %d", self, numTouches_);
 }
 
 - (BOOL)resignFirstResponder
@@ -2270,6 +2281,10 @@ NSMutableArray* screens=0;
     }
     DebugLog(@"PTYTextView keyDown");
     id delegate = [self delegate];
+    if ([delegate isPasting]) {
+        [delegate queueKeyDown:event];
+        return;
+    }
     if ([[[[[self dataSource] session] tab] realParentWindow] inInstantReplay]) {
         if (debugKeyDown) {
             NSLog(@"PTYTextView keyDown: in instant replay, send to delegate");
@@ -3347,6 +3362,9 @@ static double EuclideanDistance(NSPoint p1, NSPoint p2) {
     NSPoint locationInTextView = [self convertPoint:locationInWindow fromView:nil];
     locationInTextView.x = ceil(locationInTextView.x);
     locationInTextView.y = ceil(locationInTextView.y);
+    // Clamp the y position to be within the view. Sometimes we get events we probably shouldn't.
+    locationInTextView.y = MIN(self.frame.size.height - 1,
+                               MAX(0, locationInTextView.y));
     NSRect  rectInTextView = [self visibleRect];
     int x, y;
     int width = [dataSource width];
@@ -6264,7 +6282,15 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
             if (theLine[i].complexChar) {
                 thisChar.runType = kCharacterRunSingleCharWithCombiningMarks;
                 thisCharString = ComplexCharToStr(theLine[i].code);
-                drawable = YES;  // TODO: not all unicode is drawable
+                if (!thisCharString) {
+                    NSLog(@"No complex char for code %d", (int)theLine[i].code);
+                    thisCharString = @"";
+                    drawable = NO;
+                } else {
+                    drawable = YES;  // TODO: not all unicode is drawable
+                }
+                // Mar 19, 2013: removing assert temporarily to debug its cause (bug 2397).
+                // assert(thisCharString);
             } else {
                 // Non-complex char
                 thisChar.runType = kCharacterRunMultipleSimpleChars;
@@ -6894,7 +6920,6 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
                         fg,
                         bg,
                         &len,
-                        0,
                         [[dataSource session] doubleWidth],
                         NULL);
 
@@ -6940,7 +6965,6 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
                             fg,
                             bg,
                             &len,
-                            0,
                             [[dataSource session] doubleWidth],
                             &cursorIndex);
         int cursorX = 0;
@@ -7217,6 +7241,7 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
             if (x1 == WIDTH) {
                 screenChar = theLine[x1 - 1];
                 screenChar.code = 0;
+                screenChar.complexChar = NO;
             }
             int aChar = screenChar.code;
             if (aChar) {
@@ -7774,6 +7799,13 @@ static inline void appendToAttributedString(NSMutableAttributedString *target, N
     NSString *suffix = [self wrappedStringAtX:x y:y dir:1 respectHardNewlines:respectHardNewlines];
     NSString *joined = [prefix stringByAppendingString:suffix];
     NSString *possibleUrl = [self stringInString:joined includingOffset:[prefix length] fromCharacterSet:[PTYTextView urlCharacterSet]];
+    NSArray *punctuation = [NSArray arrayWithObjects:@".", @",", @";", nil];
+    for (NSString *pchar in punctuation) {
+        if ([possibleUrl hasSuffix:pchar]) {
+            possibleUrl = [possibleUrl substringToIndex:possibleUrl.length - 1];
+            break;
+        }
+    }
     NSString *possibleFilePart1 = [self stringInString:prefix includingOffset:[prefix length] - 1 fromCharacterSet:[PTYTextView filenameCharacterSet]];
     NSString *possibleFilePart2 = [self stringInString:suffix includingOffset:0 fromCharacterSet:[PTYTextView filenameCharacterSet]];
 

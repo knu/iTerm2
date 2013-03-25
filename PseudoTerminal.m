@@ -77,6 +77,7 @@
 #import "Coprocess.h"
 #import "ColorsMenuItemView.h"
 #import "iTermFontPanel.h"
+#import "FutureMethods.h"
 
 #define CACHED_WINDOW_POSITIONS 100
 
@@ -113,6 +114,8 @@ static NSString* TERMINAL_ARRANGEMENT_WINDOW_TYPE = @"Window Type";
 static NSString* TERMINAL_ARRANGEMENT_SELECTED_TAB_INDEX = @"Selected Tab Index";
 static NSString* TERMINAL_ARRANGEMENT_SCREEN_INDEX = @"Screen";
 static NSString* TERMINAL_ARRANGEMENT_HIDE_AFTER_OPENING = @"Hide After Opening";
+static NSString* TERMINAL_ARRANGEMENT_DESIRED_COLUMNS = @"Desired Columns";
+static NSString* TERMINAL_ARRANGEMENT_DESIRED_ROWS = @"Desired Rows";
 static NSString* TERMINAL_GUID = @"TerminalGuid";
 
 // In full screen, leave a bit of space at the top of the toolbar for aesthetics.
@@ -357,8 +360,15 @@ NSString *sessionsKey = @"sessions";
         [(PTYWindow*)[self window] setLayoutDone];
     }
 
-    if (windowType == WINDOW_TYPE_NORMAL) {
+    if (windowType == WINDOW_TYPE_NORMAL ||
+        windowType == WINDOW_TYPE_LION_FULL_SCREEN) {
         _toolbarController = [[PTToolbarController alloc] initWithPseudoTerminal:self];
+        if (IsLionOrLater() && windowType == WINDOW_TYPE_NORMAL) {
+            // Lion-Full-screen windows get forced in their windowDidEnterFullScreen call;
+            // it is too early to do that here. Other than them, only normal windows have
+            // toolbars, so fix the toolbar setting now before it displays.
+            [self forceToolbarIntoCorrectState];
+        }
         if ([[self window] respondsToSelector:@selector(setBottomCornerRounded:)])
             [[self window] setBottomCornerRounded:NO];
     }
@@ -464,6 +474,7 @@ NSString *sessionsKey = @"sessions";
 
     toolbelt_ = [[[ToolbeltView alloc] initWithFrame:NSMakeRect(0, 0, 200, self.window.frame.size.height - kToolbeltMargin)
                                                 term:self] autorelease];
+    [toolbelt_ setUseDarkDividers:windowType_ == WINDOW_TYPE_LION_FULL_SCREEN];
     [self _updateToolbeltParentage];
 
     wellFormed_ = YES;
@@ -1372,6 +1383,7 @@ NSString *sessionsKey = @"sessions";
                                      tmuxWindow:window
                                  tmuxController:tmuxController];
     [self setWindowTitle:name];
+    [tab setTmuxWindowName:name];
     [tab setReportIdealSizeAsCurrent:YES];
     [self fitWindowToTabs];
     [tab setReportIdealSizeAsCurrent:NO];
@@ -1408,6 +1420,12 @@ NSString *sessionsKey = @"sessions";
 
 - (void)loadArrangement:(NSDictionary *)arrangement
 {
+    if ([arrangement objectForKey:TERMINAL_ARRANGEMENT_DESIRED_ROWS]) {
+        desiredRows_ = [[arrangement objectForKey:TERMINAL_ARRANGEMENT_DESIRED_ROWS] intValue];
+    }
+    if ([arrangement objectForKey:TERMINAL_ARRANGEMENT_DESIRED_COLUMNS]) {
+        desiredColumns_ = [[arrangement objectForKey:TERMINAL_ARRANGEMENT_DESIRED_COLUMNS] intValue];
+    }
     for (NSDictionary* tabArrangement in [arrangement objectForKey:TERMINAL_ARRANGEMENT_TABS]) {
         [PTYTab openTabWithArrangement:tabArrangement inTerminal:self hasFlexibleView:NO];
     }
@@ -1483,6 +1501,10 @@ NSString *sessionsKey = @"sessions";
                forKey:TERMINAL_ARRANGEMENT_WINDOW_TYPE];
     [result setObject:[NSNumber numberWithInt:[[NSScreen screens] indexOfObjectIdenticalTo:[[self window] screen]]]
                                        forKey:TERMINAL_ARRANGEMENT_SCREEN_INDEX];
+    [result setObject:[NSNumber numberWithInt:desiredRows_]
+               forKey:TERMINAL_ARRANGEMENT_DESIRED_ROWS];
+    [result setObject:[NSNumber numberWithInt:desiredColumns_]
+               forKey:TERMINAL_ARRANGEMENT_DESIRED_COLUMNS];
     // Save tabs.
     NSMutableArray* tabs = [NSMutableArray arrayWithCapacity:[self numberOfTabs]];
     for (NSTabViewItem* tabViewItem in [TABVIEW tabViewItems]) {
@@ -1727,14 +1749,16 @@ NSString *sessionsKey = @"sessions";
     }
     NSRect frame = [[self window] frame];
 
+    PtyLog(@"The new screen visible frame is %@", [NSValue valueWithRect:[screen visibleFrame]]);
+
     // NOTE: In bug 1347, we see that for some machines, [screen frame].size.width==0 at some point
     // during sleep/wake from sleep. That is why we check that width is positive before setting the
     // window's frame.
+    NSSize decorationSize = [self windowDecorationSize];
     switch (windowType_) {
         case WINDOW_TYPE_TOP:
             PtyLog(@"Window type = TOP");
             // If the screen grew and the window was smaller than the desired number of rows, grow it.
-            CGSize decorationSize = [self windowDecorationSize];
             frame.size.height = MIN([screen visibleFrame].size.height,
                                     ceil([[session TEXTVIEW] lineHeight] * desiredRows_) + decorationSize.height + 2 * VMARGIN);
             frame.size.width = [screen visibleFrame].size.width;
@@ -2049,14 +2073,14 @@ NSString *sessionsKey = @"sessions";
 
 - (void)saveTmuxWindowOrigins
 {
-        for (TmuxController *tc in [self uniqueTmuxControllers]) {
-                [tc saveWindowOrigins];
-        }
+    for (TmuxController *tc in [self uniqueTmuxControllers]) {
+            [tc saveWindowOrigins];
+    }
 }
 
 - (void)windowDidMove:(NSNotification *)notification
 {
-        [self saveTmuxWindowOrigins];
+    [self saveTmuxWindowOrigins];
 }
 
 - (void)windowDidResize:(NSNotification *)aNotification
@@ -2102,15 +2126,62 @@ NSString *sessionsKey = @"sessions";
     [self futureInvalidateRestorableState];
 }
 
+- (void)saveFrameBeforeToolbarToggle {
+    if (!preToolbarToggleFrame_.size.width) {
+        PtyLog(@"Save frame of %@", NSStringFromRect(self.window.frame));
+        preToolbarToggleFrame_ = self.window.frame;
+    } else {
+        PtyLog(@"Not saving the frame");
+    }
+}
+
+- (void)restoreFrameAfterToolbarToggle {
+    if (preToolbarToggleFrame_.size.width) {
+        [[self window] setFrame:preToolbarToggleFrame_ display:YES];
+    }
+    PtyLog(@"Restoring the frame");
+    preToolbarToggleFrame_ = NSZeroRect;
+}
+
 // PTYWindowDelegateProtocol
 - (void)windowWillToggleToolbarVisibility:(id)sender
 {
+    PtyLog(@"-- windowWillToggleToolbarVisibility from %@", [NSThread callStackSymbols]);
+    // All fullscreen windows need to save their frames because the OS will shrink them when you
+    // toggle the toolbar while in lion fullscreen. We restore it for all fullscreen windows in
+    // -windowDidToggleToolbarVisibility.
+    for (PseudoTerminal *term in [[iTermController sharedInstance] terminals]) {
+        PtyLog(@"  consider term %@", term);
+        if ([term lionFullScreen]) {
+            PtyLog(@"    is lion fullscreen. Save its frame");
+            [term saveFrameBeforeToolbarToggle];
+        }
+    }
 }
 
 - (void)windowDidToggleToolbarVisibility:(id)sender
 {
-    PtyLog(@"windowDidToggleToolbarVisibility - calling fitWindowToTabs");
-    [self fitWindowToTabs];
+    PtyLog(@"windowDidToggleToolbarVisibility");
+    iTermApplicationDelegate *itad = (iTermApplicationDelegate *)[[iTermApplication sharedApplication] delegate];
+    // Fix up the frames of all lion fullscreen windows.
+    for (PseudoTerminal *term in [[iTermController sharedInstance] terminals]) {
+        if ([term lionFullScreen]) {
+            [term restoreFrameAfterToolbarToggle];
+        } else {
+            PtyLog(@"zeroing preToolbarToggleFrame_");
+            preToolbarToggleFrame_ = NSZeroRect;
+        }
+        if ([[[term window] toolbar] isVisible] != [itad toolbarShouldBeVisible]) {
+            // Sometimes a window will have its toolbar left unchanged after another one is toggled!
+            // This can happen if you hide the toolbar by clicking the menu in a lion fullscreen
+            // window; it will change but a non-fullscreen window won't.
+            [[term ptyWindow] toggleToolbarShownNoSave:nil];
+        }
+    }
+
+    if (!lionFullScreen_ && !togglingLionFullScreen_) {  // Avoid doing extra work in Lion fullscreen.
+        [self fitWindowToTabs];
+    }
 }
 
 - (IBAction)toggleUseTransparency:(id)sender
@@ -2433,6 +2504,12 @@ NSString *sessionsKey = @"sessions";
 
 - (void)windowDidEnterFullScreen:(NSNotification *)notification
 {
+    [toolbelt_ setUseDarkDividers:YES];
+    // The OS kindly toggles the toolbar for you when entering fullscreen. Undo that.
+
+    [self performSelector:@selector(forceToolbarIntoCorrectState)
+               withObject:nil
+               afterDelay:0];
     zooming_ = NO;
     togglingLionFullScreen_ = NO;
     lionFullScreen_ = YES;
@@ -2441,10 +2518,10 @@ NSString *sessionsKey = @"sessions";
     [self fitTabsToWindow];
     [self futureInvalidateRestorableState];
     [self notifyTmuxOfWindowResize];
-        for (PTYTab *aTab in [self tabs]) {
-                [aTab notifyWindowChanged];
-        }
-        [self updateSessionScrollbars];
+    for (PTYTab *aTab in [self tabs]) {
+        [aTab notifyWindowChanged];
+    }
+    [self updateSessionScrollbars];
 }
 
 - (void)windowWillExitFullScreen:(NSNotification *)notification
@@ -2467,6 +2544,10 @@ NSString *sessionsKey = @"sessions";
 
 - (void)windowDidExitFullScreen:(NSNotification *)notification
 {
+    [toolbelt_ setUseDarkDividers:NO];
+    // Since we try to work around the OS turning on the toolbar when you enter
+    // fullscreen, we also have to work around its confusion on exit.
+    [self forceToolbarIntoCorrectState];
     exitingLionFullscreen_ = NO;
     zooming_ = NO;
     lionFullScreen_ = NO;
@@ -2478,10 +2559,11 @@ NSString *sessionsKey = @"sessions";
     // TODO this is only ok because top, bottom, and non-lion fullscreen windows
     // can't become lion fullscreen windows:
     windowType_ = WINDOW_TYPE_NORMAL;
-        for (PTYTab *aTab in [self tabs]) {
-                [aTab notifyWindowChanged];
-        }
-        [self updateSessionScrollbars];
+    for (PTYTab *aTab in [self tabs]) {
+        [aTab notifyWindowChanged];
+    }
+    [self updateSessionScrollbars];
+    [self notifyTmuxOfWindowResize];
 }
 
 - (NSRect)windowWillUseStandardFrame:(NSWindow *)sender defaultFrame:(NSRect)defaultFrame
@@ -3877,7 +3959,23 @@ NSString *sessionsKey = @"sessions";
     frame.size = winSize;
     frame.origin.y -= heightChange;
 
-    [[[self window] contentView] setAutoresizesSubviews:NO];
+    // Ok, so some silly things are happening here. Issue 2096 reported that
+    // when a session-initiated resize grows a window, the window's background
+    // color becomes almost solid (it's actually a very gentle gradient between
+    // two almost identical grays). For reasons that escape me, this happens if
+    // the window's content view does not have a subview with an autoresizing
+    // mask or autoresizing is off for the content view. I'm sure this isn't
+    // the best fix, but it's all I could find: I turn off the autoresizing
+    // mask for the TABVIEW (which I really don't want autoresized--it needs to
+    // be done by hand in fitTabToWindow), and add a silly one pixel view
+    // that lives just long enough to be resized in this function. I don't know
+    // why it works but it does.
+    NSView *bugFixView = [[[NSView alloc] initWithFrame:NSMakeRect(0, 0, 1, 1)] autorelease];
+    bugFixView.autoresizingMask = (NSViewWidthSizable | NSViewHeightSizable);
+    [[[self window] contentView] addSubview:bugFixView];
+    NSUInteger savedMask = TABVIEW.autoresizingMask;
+    TABVIEW.autoresizingMask = 0;
+
     if (windowType_ == WINDOW_TYPE_TOP || windowType_ == WINDOW_TYPE_BOTTOM) {
         frame.size.width = [[self window] frame].size.width;
         frame.origin.x = [[self window] frame].origin.x;
@@ -3887,7 +3985,6 @@ NSString *sessionsKey = @"sessions";
       frame.size.height = self.screen.visibleFrame.size.height;
 
       PTYSession* session = [self currentSession];
-      NSDictionary* abDict = [session addressBookEntry];
       frame.size.width = MIN(winSize.width,
                              ceil([[session TEXTVIEW] charWidth] *
                                desiredColumns_) + decorationSize.width + 2 * MARGIN);
@@ -3903,8 +4000,11 @@ NSString *sessionsKey = @"sessions";
 
     BOOL didResize = NSEqualRects([[self window] frame], frame);
     [[self window] setFrame:frame display:YES];
-    [[[self window] contentView] setAutoresizesSubviews:YES];
 
+    // Restore TABVIEW's autoresizingMask and remove the stupid bugFixView.
+    TABVIEW.autoresizingMask = savedMask;
+    [bugFixView removeFromSuperview];
+    [[[self window] contentView] setAutoresizesSubviews:YES];
     [self fitBottomBarToWindow];
 
     PtyLog(@"fitWindowToTabs - refresh textview");
@@ -4243,14 +4343,23 @@ NSString *sessionsKey = @"sessions";
 
 - (void)setDimmingForSessions
 {
-        for (PTYSession *aSession in [self sessions]) {
-                [self setDimmingForSession:aSession];
-        }
+    for (PTYSession *aSession in [self sessions]) {
+        [self setDimmingForSession:aSession];
+    }
 }
 
 @end
 
 @implementation PseudoTerminal (Private)
+
+- (void)forceToolbarIntoCorrectState {
+    assert(IsLionOrLater());
+    iTermApplicationDelegate *itad = (iTermApplicationDelegate *)[[iTermApplication sharedApplication] delegate];
+    if ([itad toolbarShouldBeVisible] != [[[self window] toolbar] isVisible]) {
+        PtyLog(@"Force-toggling toolbar");
+        [[self ptyWindow] toggleToolbarShownNoSave:nil];
+    }
+}
 
 - (int)_screenAtPoint:(NSPoint)p
 {
@@ -5190,7 +5299,7 @@ NSString *sessionsKey = @"sessions";
         [item action] == @selector(openDashboard:)) {
         result = [[self currentTab] isTmuxTab];
     } else if ([item action] == @selector(wrapToggleToolbarShown:)) {
-        result = ![self lionFullScreen];
+        result = YES;
     } else if ([item action] == @selector(moveSessionToWindow:)) {
         result = ([[self sessions] count] > 1);
     } else if ([item action] == @selector(openSplitHorizontallySheet:) ||

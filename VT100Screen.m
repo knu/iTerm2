@@ -83,7 +83,7 @@ static const double kInterBellQuietPeriod = 0.1;
 @end
 
 /* translates normal char into graphics char */
-static void translate(screen_char_t *s, int len)
+void TranslateCharacterSet(screen_char_t *s, int len)
 {
     int i;
 
@@ -100,7 +100,6 @@ void StringToScreenChars(NSString *s,
                          screen_char_t fg,
                          screen_char_t bg,
                          int *len,
-                         NSStringEncoding encoding,
                          BOOL ambiguousIsDoubleWidth,
                          int* cursorIndex) {
     unichar *sc;
@@ -153,7 +152,6 @@ void StringToScreenChars(NSString *s,
             // render what you get than to try to be clever and break such edge cases.
             buf[j].code = '?';
         } else if (sc[i] > 0xa0 && [NSString isDoubleWidthCharacter:sc[i]
-                                                           encoding:encoding
                                              ambiguousIsDoubleWidth:ambiguousIsDoubleWidth]) {
             // This code path is for double-width characters in BMP only.
             j++;
@@ -189,7 +187,6 @@ void StringToScreenChars(NSString *s,
                 if (IsLowSurrogate(sc[i])) {
                     NSString* str = ComplexCharToStr(buf[j].code);
                     if ([NSString isDoubleWidthCharacter:DecodeSurrogatePair([str characterAtIndex:0], [str characterAtIndex:1])
-                                                encoding:encoding
                                   ambiguousIsDoubleWidth:ambiguousIsDoubleWidth]) {
                         j++;
                         buf[j].code = DWC_RIGHT;
@@ -2450,16 +2447,7 @@ static BOOL XYIsBeforeXY(int px1, int py1, int px2, int py2) {
         }
         break;
 
-        case UNDERSCORE_TMUX_UNSUPPORTED:
-                [self crlf];
-                [self setString:@"You have run an unsupported version of tmux. Please "
-                        @"install a version that is compatible with this build of iTerm2."
-                                        ascii:YES];
-                [self crlf];
-                [SESSION writeTask:[@"detach\n\n" dataUsingEncoding:NSUTF8StringEncoding]];
-                break;
-
-    case UNDERSCORE_TMUX1:
+    case DCS_TMUX:
         [SESSION startTmuxMode];
         break;
 
@@ -2534,6 +2522,15 @@ static BOOL XYIsBeforeXY(int px1, int py1, int px2, int py2) {
 
     free(temp_buffer);
     temp_buffer = NULL;
+}
+
+- (void)setSendModifiers:(int *)modifiers
+               numValues:(int)numValues {
+    NSMutableArray *array = [NSMutableArray array];
+    for (int i = 0; i < numValues; i++) {
+        [array addObject:[NSNumber numberWithInt:modifiers[i]]];
+    }
+    [SESSION setSendModifiers:array];
 }
 
 - (void)mouseModeDidChange:(MouseMode)mouseMode
@@ -2669,7 +2666,7 @@ void DumpBuf(screen_char_t* p, int n) {
         // If a graphics character set was selected then translate buffer
         // characters into graphics charaters.
         if (charset[[TERMINAL charset]]) {
-            translate(buffer, len);
+            TranslateCharacterSet(buffer, len);
         }
         if (dynamicTemp) {
             free(dynamicTemp);
@@ -2727,7 +2724,6 @@ void DumpBuf(screen_char_t* p, int n) {
                             [TERMINAL foregroundColorCode],
                             [TERMINAL backgroundColorCode],
                             &len,
-                            [TERMINAL encoding],
                             [SESSION doubleWidth],
                             NULL);
     }
@@ -3097,6 +3093,7 @@ void DumpBuf(screen_char_t* p, int n) {
         }
         for (i = 0; i < n; i++) {
             aLine[WIDTH-n+i].code = 0;
+            aLine[WIDTH-n+i].complexChar = NO;
             CopyForegroundColor(&aLine[WIDTH-n+i], [TERMINAL foregroundColorCodeReal]);
             CopyBackgroundColor(&aLine[WIDTH-n+i], [TERMINAL backgroundColorCodeReal]);
         }
@@ -3348,6 +3345,7 @@ void DumpBuf(screen_char_t* p, int n) {
             assert(aScreenChar < (buffer_lines + HEIGHT*REAL_WIDTH));  // Tried to go way past the end of the screen
         }
         aScreenChar->code = 0;
+        aScreenChar->complexChar = NO;
         CopyForegroundColor(aScreenChar, [TERMINAL foregroundColorCodeReal]);
         CopyBackgroundColor(aScreenChar, [TERMINAL backgroundColorCodeReal]);
     }
@@ -3446,39 +3444,26 @@ void DumpBuf(screen_char_t* p, int n) {
 {
     int y = cursorY - (n > 0 ? n : 1);
 
-#if DEBUG_METHOD_TRACE
-    NSLog(@"%s(%d):-[VT100Screen cursorUp:%d]",
-          __FILE__, __LINE__, n);
-#endif
+    int x = MIN(cursorX, WIDTH - 1);
     if (cursorY >= SCROLL_TOP) {
-        [self setCursorX:cursorX Y:y < SCROLL_TOP ? SCROLL_TOP : y];
+        [self setCursorX:x Y:y < SCROLL_TOP ? SCROLL_TOP : y];
     } else {
-        [self setCursorX:cursorX Y:y];
+        [self setCursorX:x Y:y];
     }
-    if (cursorX < WIDTH) {
-        [self setCharAtCursorDirty:1];
-        DebugLog(@"cursorUp");
-    }
+    DebugLog(@"cursorUp");
 }
 
 - (void)cursorDown:(int)n
 {
     int y = cursorY + (n > 0 ? n : 1);
 
-#if DEBUG_METHOD_TRACE
-    NSLog(@"%s(%d):-[VT100Screen cursorDown:%d, Y = %d; SCROLL_BOTTOM = %d]",
-          __FILE__, __LINE__, n, cursorY, SCROLL_BOTTOM);
-#endif
+    int x = MIN(cursorX, WIDTH - 1);
     if (cursorY <= SCROLL_BOTTOM) {
-        [self setCursorX:cursorX Y:y > SCROLL_BOTTOM ? SCROLL_BOTTOM : y];
+        [self setCursorX:x Y:y > SCROLL_BOTTOM ? SCROLL_BOTTOM : y];
     } else {
-        [self setCursorX:cursorX Y:MAX(0, MIN(HEIGHT-1, y))];
+        [self setCursorX:x Y:MAX(0, MIN(HEIGHT-1, y))];
     }
-
-    if (cursorX < WIDTH) {
-        [self setCharAtCursorDirty:1];
-        DebugLog(@"cursorDown");
-    }
+    DebugLog(@"cursorDown");
 }
 
 - (void)cursorToX:(int)x
@@ -4095,7 +4080,6 @@ void DumpBuf(screen_char_t* p, int n) {
 - (BOOL)isDoubleWidthCharacter:(unichar)c
 {
     return [NSString isDoubleWidthCharacter:c
-                                   encoding:[TERMINAL encoding]
                      ambiguousIsDoubleWidth:[SESSION doubleWidth]];
 }
 
@@ -4119,11 +4103,11 @@ void DumpBuf(screen_char_t* p, int n) {
     [self clearBuffer];
     for (NSData *chars in history) {
         screen_char_t *line = (screen_char_t *) [chars bytes];
-        int length = [chars length] / sizeof(screen_char_t);
-        length--;  // Last position is wrap flag
-
-        BOOL isPartial = (line[length].code == EOL_SOFT);
-        [linebuffer appendLine:line length:length partial:isPartial width:WIDTH];
+        const int len = [chars length] / sizeof(screen_char_t);
+        [linebuffer appendLine:line
+                        length:len
+                       partial:NO
+                         width:WIDTH];
     }
     if (!unlimitedScrollback_) {
         [linebuffer dropExcessLinesWithWidth:WIDTH];
@@ -4151,16 +4135,23 @@ void DumpBuf(screen_char_t* p, int n) {
     temp_default_char = [self defaultChar];
 
     // Copy the lines back over it
-    for (int i = 0; i < MIN(lines.count, HEIGHT); i++) {
+    int o = 0;
+    for (int i = 0; o < HEIGHT && i < MIN(lines.count, HEIGHT); i++) {
         NSData *chars = [lines objectAtIndex:i];
         screen_char_t *line = (screen_char_t *) [chars bytes];
         int length = [chars length] / sizeof(screen_char_t);
-        length--;  // Last position is wrap flag
-        BOOL isPartial = (line[length].code == EOL_SOFT);
-        memmove(temp_buffer + i * REAL_WIDTH,
-                line,
-                length * sizeof(screen_char_t));
-        temp_buffer[i * REAL_WIDTH + WIDTH].code = (isPartial ? EOL_SOFT : EOL_HARD);
+
+        do {
+            // Add up to WIDTH characters at a time until they're all used.
+            memmove(temp_buffer + o * REAL_WIDTH,
+                    line,
+                    MIN(WIDTH, length) * sizeof(screen_char_t));
+            const BOOL isPartial = (length > WIDTH);
+            temp_buffer[o * REAL_WIDTH + WIDTH].code = (isPartial ? EOL_SOFT : EOL_HARD);
+            length -= WIDTH;
+            line += WIDTH;
+            o++;
+        } while (o < HEIGHT && length > 0);
     }
 }
 

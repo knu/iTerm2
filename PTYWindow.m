@@ -29,6 +29,7 @@
  */
 
 #import "iTerm.h"
+#import "iTermApplication.h"
 #import "PTYWindow.h"
 #import "PreferencePanel.h"
 #import "PseudoTerminal.h"
@@ -373,24 +374,38 @@ end:
     [super makeKeyAndOrderFront:sender];
 }
 
-- (void)toggleToolbarShown:(id)sender
+- (void)toggleToolbarShownSavingState:(BOOL)shouldSave
+                               sender:(id)sender
 {
-#if DEBUG_METHOD_TRACE
-    NSLog(@"%s(%d):-[PTYWindow toggleToolbarShown]",
-          __FILE__, __LINE__);
-#endif
     id delegate = [self delegate];
 
     // Let our delegate know
-    if([delegate conformsToProtocol: @protocol(PTYWindowDelegateProtocol)])
-    [delegate windowWillToggleToolbarVisibility: self];
+    if ([delegate conformsToProtocol:@protocol(PTYWindowDelegateProtocol)]) {
+        [delegate windowWillToggleToolbarVisibility:self];
+    }
+    [super toggleToolbarShown:sender];
+    if (shouldSave) {
+        iTermApplicationDelegate *itad =
+            (iTermApplicationDelegate *)[[iTermApplication sharedApplication] delegate];
+        [itad setToolbarShouldBeVisible:[[self toolbar] isVisible]];
+    }
+    
+    // Let our delegate know (but not right away; it takes a while for the change to take effect apparently)
+    if ([delegate conformsToProtocol:@protocol(PTYWindowDelegateProtocol)]) {
+        [delegate performSelector:@selector(windowDidToggleToolbarVisibility:)
+                       withObject:self
+                       afterDelay:0];
+    }
+}
 
-    [super toggleToolbarShown: sender];
+- (void)toggleToolbarShownNoSave:(id)sender
+{
+    [self toggleToolbarShownSavingState:NO sender:sender];
+}
 
-    // Let our delegate know
-    if([delegate conformsToProtocol: @protocol(PTYWindowDelegateProtocol)])
-    [delegate windowDidToggleToolbarVisibility: self];
-
+- (void)toggleToolbarShown:(id)sender
+{
+    [self toggleToolbarShownSavingState:YES sender:sender];
 }
 
 - (BOOL)canBecomeKeyWindow
