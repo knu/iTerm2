@@ -44,6 +44,7 @@
 #import "ToastWindowController.h"
 #include <unistd.h>
 #include <sys/stat.h>
+#import <objc/runtime.h>
 
 static NSString *APP_SUPPORT_DIR = @"~/Library/Application Support/iTerm";
 static NSString *SCRIPT_DIRECTORY = @"~/Library/Application Support/iTerm/Scripts";
@@ -113,7 +114,7 @@ static BOOL hasBecomeActive = NO;
         // while compiling against the 10.5 SDK.
 
         // presentationOptions =  [NSApp presentationOptions]
-        NSMethodSignature *presentationOptionsSignature = [NSApp->isa
+        NSMethodSignature *presentationOptionsSignature = [object_getClass(NSApp)
             instanceMethodSignatureForSelector:@selector(presentationOptions)];
         NSInvocation *presentationOptionsInvocation = [NSInvocation
             invocationWithMethodSignature:presentationOptionsSignature];
@@ -128,7 +129,7 @@ static BOOL hasBecomeActive = NO;
         presentationOptions &= ~antiflags;
 
         // [NSAppObj setPresentationOptions:presentationOptions];
-        NSMethodSignature *setSig = [NSApp->isa instanceMethodSignatureForSelector:@selector(setPresentationOptions:)];
+        NSMethodSignature *setSig = [object_getClass(NSApp) instanceMethodSignatureForSelector:@selector(setPresentationOptions:)];
         NSInvocation *setInv = [NSInvocation invocationWithMethodSignature:setSig];
         [setInv setTarget:NSApp];
         [setInv setSelector:@selector(setPresentationOptions:)];
@@ -292,13 +293,8 @@ static BOOL hasBecomeActive = NO;
     }
 }
 
-- (void)updateToggleToolbarTitle {
-    [toggleToolbar setTitle:[self toolbarShouldBeVisible] ? @"Hide Toolbar" : @"Show Toolbar"];
-}
-
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification
 {
-    [self updateToggleToolbarTitle];
     [iTermFontPanel makeDefault];
 
     finishedLaunching_ = YES;
@@ -316,7 +312,8 @@ static BOOL hasBecomeActive = NO;
                              kCFPreferencesCurrentApplication);
 
     PreferencePanel* ppanel = [PreferencePanel sharedInstance];
-    if ([ppanel hotkey]) {
+    // Code could be 0 (e.g., A on an American keyboard) and char is also sometimes 0 (seen in bug 2501).
+    if ([ppanel hotkey] && ([ppanel hotkeyCode] || [ppanel hotkeyChar])) {
         [[iTermController sharedInstance] registerHotkey:[ppanel hotkeyCode] modifiers:[ppanel hotkeyModifiers]];
     }
     if ([ppanel isAnyModifierRemapped]) {
@@ -677,16 +674,6 @@ static BOOL hasBecomeActive = NO;
     return [n boolValue];
 }
 
-- (BOOL)toolbarShouldBeVisible {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:@"ToolbarVisible"];
-}
-
-- (void)setToolbarShouldBeVisible:(BOOL)value {
-    [[NSUserDefaults standardUserDefaults] setBool:value
-                                            forKey:@"ToolbarVisible"];
-    [self updateToggleToolbarTitle];
-}
-
 - (IBAction)toggleToolbelt:(id)sender
 {
     [[NSUserDefaults standardUserDefaults] setObject:[NSNumber numberWithBool:![self showToolbelt]]
@@ -811,7 +798,7 @@ static BOOL hasBecomeActive = NO;
     }
 }
 
-- (void) dealloc
+- (void)dealloc
 {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 
@@ -826,7 +813,7 @@ static BOOL hasBecomeActive = NO;
 
 - (IBAction)newWindow:(id)sender
 {
-    [[iTermController sharedInstance] newWindow:sender];
+    [[iTermController sharedInstance] newWindow:sender possiblyTmux:YES];
 }
 
 - (IBAction)newSessionWithSameProfile:(id)sender
@@ -836,16 +823,17 @@ static BOOL hasBecomeActive = NO;
 
 - (IBAction)newSession:(id)sender
 {
-    [[iTermController sharedInstance] newSession:sender];
+    DLog(@"iTermApplicationDelegate newSession:");
+    [[iTermController sharedInstance] newSession:sender possiblyTmux:YES];
 }
 
 // navigation
-- (IBAction) previousTerminal: (id) sender
+- (IBAction)previousTerminal:(id)sender
 {
     [[iTermController sharedInstance] previousTerminal:sender];
 }
 
-- (IBAction) nextTerminal: (id) sender
+- (IBAction)nextTerminal:(id)sender
 {
     [[iTermController sharedInstance] nextTerminal:sender];
 }
@@ -955,12 +943,12 @@ static BOOL hasBecomeActive = NO;
 }
 
 // font control
-- (IBAction) biggerFont: (id) sender
+- (IBAction)biggerFont: (id) sender
 {
     [[[[iTermController sharedInstance] currentTerminal] currentSession] changeFontSizeDirection:1];
 }
 
-- (IBAction) smallerFont: (id) sender
+- (IBAction)smallerFont: (id) sender
 {
     [[[[iTermController sharedInstance] currentTerminal] currentSession] changeFontSizeDirection:-1];
 }
@@ -1156,7 +1144,7 @@ int DebugLogImpl(const char *file, int line, const char *function, NSString* val
         struct timeval tv;
         gettimeofday(&tv, NULL);
 
-        [gDebugLogStr appendFormat:@"%ld.%08ld %s:%d (%s): ", (long long)tv.tv_sec, (long long)tv.tv_usec, file, line, function];
+        [gDebugLogStr appendFormat:@"%lld.%08lld %s:%d (%s): ", (long long)tv.tv_sec, (long long)tv.tv_usec, file, line, function];
         [gDebugLogStr appendString:value];
         [gDebugLogStr appendString:@"\n"];
         if ([gDebugLogStr length] > 100000000) {
@@ -1219,24 +1207,14 @@ int DebugLogImpl(const char *file, int line, const char *function, NSString* val
 - (IBAction)returnToDefaultSize:(id)sender
 {
     PseudoTerminal *frontTerminal = [[iTermController sharedInstance] currentTerminal];
-    PTYTab* theTab = [frontTerminal currentTab];
-    PTYSession* aSession = [theTab activeSession];
-
-    NSDictionary *abEntry = [aSession originalAddressBookEntry];
-
-    NSString* fontDesc = [abEntry objectForKey:KEY_NORMAL_FONT];
-    NSFont* font = [ITAddressBookMgr fontWithDesc:fontDesc];
-    NSFont* nafont = [ITAddressBookMgr fontWithDesc:[abEntry objectForKey:KEY_NON_ASCII_FONT]];
-    float hs = [[abEntry objectForKey:KEY_HORIZONTAL_SPACING] floatValue];
-    float vs = [[abEntry objectForKey:KEY_VERTICAL_SPACING] floatValue];
-    PTYSession* session = [frontTerminal currentSession];
-    PTYTextView* textview = [session TEXTVIEW];
-    [textview setFont:font nafont:nafont horizontalSpacing:hs verticalSpacing:vs];
-        if ([sender isAlternate]) {
-                [frontTerminal sessionInitiatedResize:session
-                                                width:[[abEntry objectForKey:KEY_COLUMNS] intValue]
-                                               height:[[abEntry objectForKey:KEY_ROWS] intValue]];
-        }
+    PTYSession *session = [frontTerminal currentSession];
+    [session changeFontSizeDirection:0];
+    if ([sender isAlternate]) {
+        NSDictionary *abEntry = [session originalAddressBookEntry];
+        [frontTerminal sessionInitiatedResize:session
+                                        width:[[abEntry objectForKey:KEY_COLUMNS] intValue]
+                                       height:[[abEntry objectForKey:KEY_ROWS] intValue]];
+    }
 }
 
 - (IBAction)exposeForTabs:(id)sender

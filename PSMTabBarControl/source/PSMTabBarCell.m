@@ -11,6 +11,7 @@
 #import "PSMTabStyle.h"
 #import "PSMProgressIndicator.h"
 #import "PSMTabDragAssistant.h"
+#import "FutureMethods.h"
 
 @interface PSMTabBarControl (Private)
 - (void)update;
@@ -90,6 +91,12 @@
     [super dealloc];
 }
 
+// we don't want this to be the first responder in the chain
+- (BOOL)acceptsFirstResponder
+{
+  return NO;
+}
+
 #pragma mark -
 #pragma mark Accessors
 
@@ -154,7 +161,7 @@
 
 - (NSAttributedString *)attributedStringValue
 {
-    NSMutableAttributedString *aString = [[[NSMutableAttributedString alloc] initWithAttributedString:[(id <PSMTabStyle>)[_controlView style] attributedStringValueForTabCell:self]] autorelease];
+    NSMutableAttributedString *aString = [[[NSMutableAttributedString alloc] initWithAttributedString:[(id <PSMTabStyle>)[(PSMTabBarControl *)_controlView style] attributedStringValueForTabCell:self]] autorelease];
 
     if (_labelColor) {
         [aString addAttribute:NSForegroundColorAttributeName value:_labelColor range:NSMakeRange(0, [aString length])];
@@ -301,22 +308,22 @@
 
 - (NSRect)indicatorRectForFrame:(NSRect)cellFrame
 {
-    return [(id <PSMTabStyle>)[_controlView style] indicatorRectForTabCell:self];
+    return [(id <PSMTabStyle>)[(PSMTabBarControl *)_controlView style] indicatorRectForTabCell:self];
 }
 
 - (NSRect)closeButtonRectForFrame:(NSRect)cellFrame
 {
-    return [(id <PSMTabStyle>)[_controlView style] closeButtonRectForTabCell:self];
+    return [(id <PSMTabStyle>)[(PSMTabBarControl *)_controlView style] closeButtonRectForTabCell:self];
 }
 
 - (float)minimumWidthOfCell
 {
-    return [(id <PSMTabStyle>)[_controlView style] minimumWidthOfTabCell:self];
+    return [(id <PSMTabStyle>)[(PSMTabBarControl *)_controlView style] minimumWidthOfTabCell:self];
 }
 
 - (float)desiredWidthOfCell
 {
-    return [(id <PSMTabStyle>)[_controlView style] desiredWidthOfTabCell:self];
+    return [(id <PSMTabStyle>)[(PSMTabBarControl *)_controlView style] desiredWidthOfTabCell:self];
 }
 
 #pragma mark -
@@ -330,7 +337,7 @@
         return;
     }
 
-    [(id <PSMTabStyle>)[_controlView style] drawTabCell:self];
+    [(id <PSMTabStyle>)[(PSMTabBarControl *)_controlView style] drawTabCell:self];
 }
 
 #pragma mark -
@@ -372,7 +379,7 @@
 
 - (NSImage *)dragImage
 {
-    NSRect cellFrame = [(id <PSMTabStyle>)[_controlView style] dragRectForTabCell:self orientation:[(PSMTabBarControl *)_controlView orientation]];
+    NSRect cellFrame = [(id <PSMTabStyle>)[(PSMTabBarControl *)_controlView style] dragRectForTabCell:self orientation:[(PSMTabBarControl *)_controlView orientation]];
     //NSRect cellFrame = [self frame];
 
     [_controlView lockFocus];
@@ -451,11 +458,26 @@
     return NO;
 }
 
+- (NSArray*)accessibilityAttributeNames
+{
+    static NSArray *attributes = nil;
+    if (!attributes) {
+        NSSet *set = [NSSet setWithArray:[super accessibilityAttributeNames]];
+        set = [set setByAddingObjectsFromArray:[NSArray arrayWithObjects:
+                                                   NSAccessibilityTitleAttribute,
+                                                   NSAccessibilityValueAttribute,
+                                                   nil]];
+        attributes = [[set allObjects] retain];
+    }
+    return attributes;
+}
+
+
 - (id)accessibilityAttributeValue:(NSString *)attribute {
     id attributeValue = nil;
 
     if ([attribute isEqualToString: NSAccessibilityRoleAttribute]) {
-        attributeValue = NSAccessibilityButtonRole;
+        attributeValue = NSAccessibilityRadioButtonRole;
     } else if ([attribute isEqualToString: NSAccessibilityHelpAttribute]) {
         if ([[[self controlView] delegate] respondsToSelector:@selector(accessibilityStringForTabView:objectCount:)]) {
             attributeValue = [NSString stringWithFormat:@"%@, %i %@", [self stringValue],
@@ -464,7 +486,18 @@
         } else {
             attributeValue = [self stringValue];
         }
-    } else if ([attribute isEqualToString: NSAccessibilityFocusedAttribute]) {
+    } else if ([attribute isEqualToString:NSAccessibilityPositionAttribute] || [attribute isEqualToString:NSAccessibilitySizeAttribute]) {
+        NSRect rect = [self frame];
+        rect = [[self controlView] convertRect:rect toView:nil];
+        rect = [[self controlView] futureConvertRectToScreen:rect];
+        if ([attribute isEqualToString:NSAccessibilityPositionAttribute]) {
+            attributeValue = [NSValue valueWithPoint:rect.origin];
+        } else {
+            attributeValue = [NSValue valueWithSize:rect.size];
+        }
+    } else if ([attribute isEqualToString:NSAccessibilityTitleAttribute]) {
+        attributeValue = [self stringValue];
+    } else if ([attribute isEqualToString: NSAccessibilityValueAttribute]) {
         attributeValue = [NSNumber numberWithBool:([self tabState] == 2)];
     } else {
         attributeValue = [super accessibilityAttributeValue:attribute];

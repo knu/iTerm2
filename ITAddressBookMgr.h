@@ -115,6 +115,7 @@
 #define KEY_DISABLE_BOLD           @"Disable Bold"  // DEPRECATED
 #define KEY_USE_BOLD_FONT          @"Use Bold Font"
 #define KEY_USE_BRIGHT_BOLD        @"Use Bright Bold"
+#define KEY_USE_ITALIC_FONT        @"Use Italic Font"
 #define KEY_TRANSPARENCY           @"Transparency"
 #define KEY_BLEND                  @"Blend"
 #define KEY_BLUR                   @"Blur"
@@ -123,9 +124,11 @@
 #define KEY_ASCII_ANTI_ALIASED     @"ASCII Anti Aliased"
 #define KEY_NONASCII_ANTI_ALIASED  @"Non-ASCII Anti Aliased"
 #define KEY_BACKGROUND_IMAGE_LOCATION @"Background Image Location"
+#define KEY_BACKGROUND_IMAGE_TILED @"Background Image Is Tiled"
 
 // Terminal
 #define KEY_DISABLE_WINDOW_RESIZING           @"Disable Window Resizing"
+#define KEY_PREVENT_TAB                       @"Prevent Opening in a Tab"
 #define KEY_HIDE_AFTER_OPENING                @"Hide After Opening"
 #define KEY_SYNC_TITLE                        @"Sync Title"
 #define KEY_CLOSE_SESSIONS_ON_END             @"Close Sessions On End"
@@ -174,6 +177,7 @@
 #define WINDOW_TYPE_LION_FULL_SCREEN 4  // Lion-native fullscreen
 #define WINDOW_TYPE_BOTTOM 5
 #define WINDOW_TYPE_LEFT 6
+#define WINDOW_TYPE_RIGHT 7
 
 typedef enum {
   iTermWindowObject,
@@ -195,7 +199,7 @@ typedef enum {
 @interface ITAddressBookMgr (Private)
 
 + (id)sharedInstance;
-+ (NSArray*)encodeColor:(NSColor*)origColor;
++ (NSDictionary*)encodeColor:(NSColor*)origColor;
 + (NSColor*)decodeColor:(NSDictionary*)plist;
 + (void)setDefaultsInBookmark:(NSMutableDictionary*)aDict;
 
@@ -217,10 +221,8 @@ typedef enum {
 - (void)netServiceDidStop:(NSNetService *)aNetService;
 - (NSString*) getBonjourServiceType:(NSString*)aType;
 + (NSString*)loginShellCommandForBookmark:(Profile*)bookmark
-							 asLoginShell:(BOOL*)asLoginShell
 							forObjectType:(iTermObjectType)objectType;
 + (NSString*)bookmarkCommand:(Profile*)bookmark
-			  isLoginSession:(BOOL*)isLoginSession
 			   forObjectType:(iTermObjectType)objectType;
 + (NSString*)bookmarkWorkingDirectory:(Profile*)bookmark
                         forObjectType:(iTermObjectType)objectType;

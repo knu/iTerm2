@@ -20,6 +20,7 @@
 #import "EquivalenceClassSet.h"
 #import "TmuxDashboardController.h"
 #import "PreferencePanel.h"
+#import "iTermApplicationDelegate.h"
 
 NSString *kTmuxControllerSessionsDidChange = @"kTmuxControllerSessionsDidChange";
 NSString *kTmuxControllerDetachedNotification = @"kTmuxControllerDetachedNotification";
@@ -29,6 +30,9 @@ NSString *kTmuxControllerWindowDidOpen = @"kTmuxControllerWindowDidOpen";
 NSString *kTmuxControllerAttachedSessionDidChange = @"kTmuxControllerAttachedSessionDidChange";
 NSString *kTmuxControllerWindowDidClose = @"kTmuxControllerWindowDidClose";
 NSString *kTmuxControllerSessionWasRenamed = @"kTmuxControllerSessionWasRenamed";
+
+// Unsupported global options:
+static NSString *const kAggressiveResize = @"aggressive-resize";
 
 static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
     "#{window_name}\t"
@@ -43,6 +47,7 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
 - (void)releaseWindow:(int)window;
 - (void)closeAllPanes;
 - (void)windowDidOpen:(NSNumber *)windowIndex;
+- (void)getOriginsResponse:(NSString *)result;
 
 @end
 
@@ -124,7 +129,7 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
 }
 
 - (void)setLayoutInTab:(PTYTab *)tab
-                toLayout:(NSString *)layout
+              toLayout:(NSString *)layout
 {
     TmuxWindowOpener *windowOpener = [TmuxWindowOpener windowOpener];
     windowOpener.ambiguousIsDoubleWidth = ambiguousIsDoubleWidth_;
@@ -416,6 +421,59 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
     [gateway_ sendCommandList:commands];
 }
 
+// Make sure that current tmux options are compatible with iTerm.
+- (void)validateOptions
+{
+    for (NSString *option in [self unsupportedGlobalOptions]) {
+        [gateway_ sendCommand:[NSString stringWithFormat:@"show-window-options -g %@", option]
+               responseTarget:self
+             responseSelector:@selector(showWindowOptionsResponse:)];
+    }
+}
+
+// Show an error and terminate the connection because tmux has an unsupported option turned on.
+- (void)optionValidationFailedForOption:(NSString *)option
+{
+    NSString *message = [NSString stringWithFormat:
+                            @"The \"%@\" option is turned on in tmux. "
+                             "It is not compatible with the iTerm2-tmux integration. "
+                             "Please disable it and try again.",
+                             option];
+    [gateway_ abortWithErrorMessage:message
+                              title:@"Unsupported tmux option"];
+}
+
+- (NSArray *)unsupportedGlobalOptions
+{
+    // The aggressive-resize option is not supported because it relies on the
+    // concept of a current window in tmux, which doesn't exist in the
+    // integration mode.
+    return [NSArray arrayWithObjects:kAggressiveResize, nil];
+}
+
+// Parse the output of show-window-options sent in -validateOptions, possibly
+// showing an error and terminating the connection.
+- (void)showWindowOptionsResponse:(NSString *)response {
+    NSArray *unsupportedGlobalOptions = [self unsupportedGlobalOptions];
+    NSArray *lines = [response componentsSeparatedByString:@"\n"];
+    for (NSString *line in lines) {
+        NSArray *fields = [line componentsSeparatedByString:@" "];
+        if ([fields count] == 2) {
+            NSString *option = [fields objectAtIndex:0];
+            NSString *value = [fields objectAtIndex:1];
+
+            for (NSString *unsupportedOption in unsupportedGlobalOptions) {
+                if ([option isEqualToString:unsupportedOption]) {
+                    if ([value isEqualToString:@"on"]) {
+                        [self optionValidationFailedForOption:unsupportedOption];
+                        return;
+                    }
+                }
+            }
+        }
+    }
+}
+
 - (BOOL)hasOutstandingWindowResize
 {
     return numOutstandingWindowResizes_ > 0;
@@ -476,21 +534,13 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
          responseSelector:nil];
 }
 
-- (void)newWindowWithAffinity:(int)windowId
+- (void)newWindowWithAffinity:(NSString *)windowIdString
 {
-    if (windowId >= 0) {
-        [gateway_ sendCommand:@"new-window -PF '#{window_id}'"
-               responseTarget:self
-             responseSelector:@selector(newWindowWithAffinityCreated:affinityWindow:)
-               responseObject:[NSString stringWithInt:windowId]
-                        flags:0];
-    } else {
-        [gateway_ sendCommand:@"new-window -PF '#{window_id}'"
-               responseTarget:self
-             responseSelector:@selector(newWindowWithoutAffinityCreated:)
-               responseObject:nil
-                        flags:0];
-    }
+    [gateway_ sendCommand:@"new-window -PF '#{window_id}'"
+           responseTarget:self
+         responseSelector:@selector(newWindowWithAffinityCreated:affinityWindow:)
+           responseObject:windowIdString
+                    flags:0];
 }
 
 - (void)movePane:(int)srcPane
@@ -514,11 +564,14 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
 
 - (void)unlinkWindowWithId:(int)windowId inSession:(NSString *)sessionName
 {
-    [gateway_ sendCommand:[NSString stringWithFormat:@"unlink-window -k -t \"%@:@%d\"",
-                           [sessionName stringByEscapingQuotes],
-                           windowId]
+    // see the notes in TmuxGateway.h about kTmuxGatewayCommandHasEndGuardBug.
+    // I submitted a patch to tmux on 4/6/13, but it's not clear how long the
+    // workaround should stick around.
+    [gateway_ sendCommand:[NSString stringWithFormat:@"unlink-window -k -t @%d", windowId]
            responseTarget:nil
-         responseSelector:nil];
+         responseSelector:nil
+                   responseObject:nil
+                                        flags:kTmuxGatewayCommandHasEndGuardBug];
 }
 
 - (void)renameWindowWithId:(int)windowId inSession:(NSString *)sessionName toName:(NSString *)newName
@@ -532,7 +585,9 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
 {
     [gateway_ sendCommand:[NSString stringWithFormat:@"kill-window -t @%d", window]
            responseTarget:nil
-         responseSelector:nil];
+         responseSelector:nil
+           responseObject:nil
+                    flags:kTmuxGatewayCommandHasEndGuardBug];
 }
 
 - (void)breakOutWindowPane:(int)windowPane toPoint:(NSPoint)screenPoint
@@ -604,7 +659,7 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
            toSession:(NSString *)targetSession
 {
     [gateway_ sendCommand:[NSString stringWithFormat:@"link-window -s \"%@:@%d\" -t \"%@:+\"",
-                           sessionName, windowId, targetSession, windowId]
+                           sessionName, windowId, targetSession]
            responseTarget:nil
          responseSelector:nil];
 }
@@ -750,6 +805,7 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
         }
     }
     NSString *enc = [maps componentsJoinedByString:@" "];
+    DLog(@"Save window origins to %@ called from %@", enc, [NSThread callStackSymbols]);
     NSString *command = [NSString stringWithFormat:@"set -t $%d @origins \"%@\"",
              sessionId_, [enc stringByEscapingQuotes]];
     if (!lastOrigins_ || ![command isEqualToString:lastOrigins_]) {
@@ -760,7 +816,7 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
                responseTarget:self
              responseSelector:@selector(saveWindowOriginsResponse:)];
     }
-
+  [self getOriginsResponse:enc];
 }
 
 - (void)saveWindowOriginsResponse:(NSString *)response
@@ -823,6 +879,12 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
             if (term) {
                 return term;
             }
+        } else if ([n hasPrefix:@"-"]) {
+            // Attach to window without a tmux tab; the window number is
+            // -(n+1). It may not exist, which means to open a new window.
+            int value = -[n intValue];
+            value -= 1;  // Correct for -1 based index.
+            return [[iTermController sharedInstance] terminalWithNumber:value];
         } else if (![n hasSuffix:@"_ph"]) {
             PTYTab *tab = [self window:[n intValue]];
             if (tab) {
@@ -856,6 +918,33 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
 @end
 
 @implementation TmuxController (Private)
+
+- (void)getOriginsResponse:(NSString *)result
+{
+  [origins_ removeAllObjects];
+  if ([result length] > 0) {
+    NSArray *windows = [result componentsSeparatedByString:@" "];
+    for (NSString *wstr in windows) {
+      NSArray *tuple = [wstr componentsSeparatedByString:@":"];
+      if (tuple.count != 2) {
+        continue;
+      }
+      NSString *windowsStr = [tuple objectAtIndex:0];
+      NSString *coords = [tuple objectAtIndex:1];
+      NSArray *windowIds = [windowsStr componentsSeparatedByString:@","];
+      NSArray *xy = [coords componentsSeparatedByString:@","];
+      if (xy.count != 2) {
+        continue;
+      }
+      NSPoint origin = NSMakePoint([[xy objectAtIndex:0] intValue],
+                                   [[xy objectAtIndex:1] intValue]);
+      for (NSString *wid in windowIds) {
+        [origins_ setObject:[NSValue valueWithPoint:origin]
+                     forKey:[NSNumber numberWithInt:[wid intValue]]];
+      }
+    }
+  }
+}
 
 - (int)windowIdFromString:(NSString *)s
 {
@@ -910,8 +999,7 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
         if (siblings.count == 1) {
             // This is a wee hack. If a tmux Window is in a native window with one tab
             // then create an equivalence class containing only (wid, wid+"_ph"). ph=placeholder
-            // We'll never see a window id that's negative, but the equivalence
-            // class's existance signals not to apply the default mode for
+            // The equivalence class's existance signals not to apply the default mode for
             // unrecognized windows.
             exemplar = [exemplar stringByAppendingString:@"_ph"];
         }
@@ -919,33 +1007,6 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
             if (![widString isEqualToString:exemplar]) {
                 [affinities_ setValue:widString
                          equalToValue:exemplar];
-            }
-        }
-    }
-}
-
-- (void)getOriginsResponse:(NSString *)result
-{
-    [origins_ removeAllObjects];
-    if ([result length] > 0) {
-        NSArray *windows = [result componentsSeparatedByString:@" "];
-        for (NSString *wstr in windows) {
-            NSArray *tuple = [wstr componentsSeparatedByString:@":"];
-            if (tuple.count != 2) {
-                continue;
-            }
-            NSString *windowsStr = [tuple objectAtIndex:0];
-            NSString *coords = [tuple objectAtIndex:1];
-            NSArray *windowIds = [windowsStr componentsSeparatedByString:@","];
-            NSArray *xy = [coords componentsSeparatedByString:@","];
-            if (xy.count != 2) {
-                continue;
-            }
-            NSPoint origin = NSMakePoint([[xy objectAtIndex:0] intValue],
-                                         [[xy objectAtIndex:1] intValue]);
-            for (NSString *wid in windowIds) {
-                [origins_ setObject:[NSValue valueWithPoint:origin]
-                             forKey:[NSNumber numberWithInt:[wid intValue]]];
             }
         }
     }
@@ -1042,17 +1103,17 @@ static NSString *kListWindowsFormat = @"\"#{session_name}\t#{window_id}\t"
     }
 }
 
-- (void)newWindowWithoutAffinityCreated:(NSString *)responseStr
-{
-    [affinities_ removeValue:[NSString stringWithInt:[responseStr intValue]]];
-}
-
 - (void)newWindowWithAffinityCreated:(NSString *)responseStr
-                      affinityWindow:(NSString  *)affinityWindow
+                      affinityWindow:(NSString *)affinityWindow  // Value passed in to -newWindowWithAffinity:, may be nil
 {
     if ([responseStr hasPrefix:@"@"]) {
-        [affinities_ setValue:[NSString stringWithInt:[[responseStr substringFromIndex:1] intValue]]
-                 equalToValue:affinityWindow];
+        NSString  *windowId = [NSString stringWithInt:[[responseStr substringFromIndex:1] intValue]];
+        if (affinityWindow) {
+            [affinities_ setValue:windowId
+                     equalToValue:affinityWindow];
+        } else {
+            [affinities_ removeValue:windowId];
+        }
     } else {
         NSLog(@"Response to new-window doesn't look like a window id: \"%@\"", responseStr);
     }

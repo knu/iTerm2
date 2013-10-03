@@ -41,18 +41,20 @@
 
 - (LineBlock*) initWithRawBufferSize: (int) size
 {
-    raw_buffer = (screen_char_t*) malloc(sizeof(screen_char_t) * size);
-    buffer_start = raw_buffer;
-    start_offset = 0;
-    first_entry = 0;
-    buffer_size = size;
-    // Allocate enough space for a bunch of 80-character lines. It can grow if needed.
-    cll_capacity = 1 + size/80;
-    cll_entries = 0;
-    cumulative_line_lengths = (int*) malloc(sizeof(int) * cll_capacity);
-    is_partial = NO;
-    cached_numlines_width = -1;
-
+    self = [super init];
+    if (self) {
+        raw_buffer = (screen_char_t*) malloc(sizeof(screen_char_t) * size);
+        buffer_start = raw_buffer;
+        start_offset = 0;
+        first_entry = 0;
+        buffer_size = size;
+        // Allocate enough space for a bunch of 80-character lines. It can grow if needed.
+        cll_capacity = 1 + size/80;
+        cll_entries = 0;
+        cumulative_line_lengths = (int*) malloc(sizeof(int) * cll_capacity);
+        is_partial = NO;
+        cached_numlines_width = -1;
+    }
     return self;
 }
 
@@ -101,6 +103,7 @@
 {
     if (cll_entries == cll_capacity) {
         cll_capacity *= 2;
+        cll_capacity = MAX(1, cll_capacity);
         cumulative_line_lengths = (int*) realloc((void*) cumulative_line_lengths, cll_capacity * sizeof(int));
     }
     cumulative_line_lengths[cll_entries] = cumulativeLength;
@@ -136,48 +139,6 @@ static char* formatsct(screen_char_t* src, int len, char* dest) {
     }
 }
 
-- (BOOL) appendLine: (screen_char_t*) buffer length: (int) length partial:(BOOL) partial
-{
-    const int space_used = [self rawSpaceUsed];
-    const int free_space = buffer_size - space_used - start_offset;
-    if (length > free_space) {
-        return NO;
-    }
-    // There's a bit of an edge case here: if you're appending an empty
-    // non-partial line to a partial line, we need it to append a blank line
-    // after the continued line. In practice this happens because a line is
-    // long but then the wrapped portion is erased and the EOL_SOFT flag stays
-    // behind. It would be really complex to ensure consistency of line-wrapping
-    // flags because the screen contents are changed in so many places.
-    if (is_partial && !(!partial && length == 0)) {
-        // append to an existing line
-        NSAssert(cll_entries > 0, @"is_partial but has no entries");
-        cumulative_line_lengths[cll_entries - 1] += length;
-    } else {
-        // add a new line
-        [self _appendCumulativeLineLength: (space_used + length)];
-    }
-    is_partial = partial;
-    memcpy(raw_buffer + space_used, buffer, sizeof(screen_char_t) * length);
-    cached_numlines_width = -1;
-    return YES;
-}
-
-- (int) getPositionOfLine: (int*)lineNum atX: (int) x withWidth: (int)width
-{
-    int length;
-    int eol;
-    screen_char_t* p = [self getWrappedLineWithWrapWidth: width
-                                                 lineNum: lineNum
-                                              lineLength: &length
-                                       includesEndOfLine: &eol];
-    if (!p) {
-        return -1;
-    } else {
-        return p - raw_buffer + x;
-    }
-}
-
 // Count the number of "full lines" in buffer up to position 'length'. A full
 // line is one that, after wrapping, goes all the way to the edge of the screen
 // and has at least one character wrap around. It is equal to the number of
@@ -199,6 +160,88 @@ static int NumberOfFullLines(screen_char_t* buffer, int length, int width)
     }
     return fullLines;
 }
+
+#ifdef TEST_LINEBUFFER_SANITY
+- (void) checkAndResetCachedNumlines: (char *) methodName width: (int) width
+{
+    int old_cached = cached_numlines;
+    Boolean was_valid = cached_numlines_width != -1;
+    cached_numlines_width = -1;
+    int new_cached = [self getNumLinesWithWrapWidth: width];
+    if (was_valid && old_cached != new_cached) {
+        NSLog(@"%s: cached_numlines updated to %d, but should be %d!", methodName, old_cached, new_cached);
+    }
+}
+#endif
+
+- (BOOL) appendLine: (screen_char_t*) buffer length: (int) length partial:(BOOL) partial width: (int) width
+{
+    const int space_used = [self rawSpaceUsed];
+    const int free_space = buffer_size - space_used - start_offset;
+    if (length > free_space) {
+        return NO;
+    }
+    memcpy(raw_buffer + space_used, buffer, sizeof(screen_char_t) * length);
+    // There's an edge case here. In the else clause, the line buffer looks like this originally:
+    //   |xxxx| EOL_SOFT
+    // Then append an empty line with EOL_HARD. The desired result is
+    //   |xxxx| EOL_SOFT
+    //   ||     EOL_HARD
+    // It's an edge case because even though the line buffer is in the "is_partial" state, we can't
+    // just increment the last line's length.
+    //
+    // This can happen in practice if the now-empty line being appended formerly had some stuff
+    // but that stuff was erased and the EOL_SOFT was left behind.
+    if (is_partial && !(!partial && length == 0)) {
+        // append to an existing line
+        NSAssert(cll_entries > 0, @"is_partial but has no entries");
+        // update the numlines cache with the new number of full lines that the updated line has.
+        if (width != cached_numlines_width) {
+            cached_numlines_width = -1;
+        } else {
+            int prev_cll = cll_entries > first_entry + 1 ? cumulative_line_lengths[cll_entries - 2] - start_offset : 0;
+            int cll = cumulative_line_lengths[cll_entries - 1] - start_offset;
+            int old_length = cll - prev_cll;
+            int oldnum = NumberOfFullLines(buffer_start + prev_cll, old_length, width);
+            int newnum = NumberOfFullLines(buffer_start + prev_cll, old_length + length, width);
+            cached_numlines += newnum - oldnum;
+        }
+
+        cumulative_line_lengths[cll_entries - 1] += length;
+#ifdef TEST_LINEBUFFER_SANITY
+        [self checkAndResetCachedNumlines:@"appendLine partial case" width: width];
+#endif
+    } else {
+        // add a new line
+        [self _appendCumulativeLineLength: (space_used + length)];
+        if (width != cached_numlines_width) {
+            cached_numlines_width = -1;
+        } else {
+            cached_numlines += NumberOfFullLines(buffer, length, width) + 1;
+        }
+#ifdef TEST_LINEBUFFER_SANITY
+        [self checkAndResetCachedNumlines:"appendLine normal case" width: width];
+#endif
+    }
+    is_partial = partial;
+    return YES;
+}
+
+- (int) getPositionOfLine: (int*)lineNum atX: (int) x withWidth: (int)width
+{
+    int length;
+    int eol;
+    screen_char_t* p = [self getWrappedLineWithWrapWidth: width
+                                                 lineNum: lineNum
+                                              lineLength: &length
+                                       includesEndOfLine: &eol];
+    if (!p) {
+        return -1;
+    } else {
+        return p - raw_buffer + x;
+    }
+}
+
 
 // Finds a where the nth line begins after wrapping and returns its offset from the start of the buffer.
 //
@@ -360,8 +403,7 @@ static int OffsetOfWrappedLine(screen_char_t* p, int n, int length, int width) {
         first_entry = 0;
         cll_entries = 0;
     }
-
-    // Mark the cache dirty.
+    // refresh cache
     cached_numlines_width = -1;
     return YES;
 }
@@ -412,6 +454,7 @@ static int OffsetOfWrappedLine(screen_char_t* p, int n, int length, int width) {
 - (void) changeBufferSize: (int) capacity
 {
     NSAssert(capacity >= [self rawSpaceUsed], @"Truncating used space");
+    capacity = MAX(1, capacity);
     raw_buffer = (screen_char_t*) realloc((void*) raw_buffer, sizeof(screen_char_t) * capacity);
     buffer_start = raw_buffer + start_offset;
     buffer_size = capacity;
@@ -435,7 +478,6 @@ static int OffsetOfWrappedLine(screen_char_t* p, int n, int length, int width) {
 
 - (int) dropLines:(int)n withWidth:(int)width chars:(int *)charsDropped;
 {
-    cached_numlines_width = -1;
     int orig_n = n;
     int prev = 0;
     int length;
@@ -460,15 +502,26 @@ static int OffsetOfWrappedLine(screen_char_t* p, int n, int length, int width) {
             // would be:
             //   offset = n * width;
             int offset = OffsetOfWrappedLine(buffer_start + prev, n, length, width);
+            if (width != cached_numlines_width) {
+                cached_numlines_width = -1;
+            } else {
+                cached_numlines -= orig_n;
+            }
             buffer_start += prev + offset;
             start_offset = buffer_start - raw_buffer;
             first_entry = i;
             *charsDropped = start_offset - initialOffset;
+
+#ifdef TEST_LINEBUFFER_SANITY
+            [self checkAndResetCachedNumlines:"dropLines" width: width];
+#endif
+
             return orig_n;
         }
         prev = cll;
     }
     // Consumed the whole buffer.
+    cached_numlines_width = -1;
     cll_entries = 0;
     buffer_start = raw_buffer;
     start_offset = 0;
@@ -594,7 +647,7 @@ static int CoreSearch(NSString* needle, screen_char_t* rawline, int raw_line_len
             }
         } else {
             hasSuffix = NO;
-            sandwich = [NSString stringWithFormat:@"%C%@", kPrefixChar, sanitizedHaystack, kSuffixChar];
+            sandwich = [NSString stringWithFormat:@"%C%@", kPrefixChar, sanitizedHaystack];
         }
 
         temp = [sandwich rangeOfRegex:rewrittenRegex
@@ -819,7 +872,10 @@ static int Search(NSString* needle,
 
 - (int) _findEntryBeforeOffset: (int) offset
 {
-    assert(offset >= start_offset);
+    if (offset < start_offset) {
+        return -1;
+    }
+
     int i;
     for (i = first_entry; i < cll_entries; ++i) {
         if (cumulative_line_lengths[i] > offset) {
@@ -1088,7 +1144,7 @@ static int RawNumLines(LineBuffer* buffer, int width) {
     LineBlock* block = [blocks objectAtIndex: ([blocks count] - 1)];
 
     int beforeLines = [block getNumLinesWithWrapWidth:width];
-    if (![block appendLine: buffer length: length partial: partial]) {
+    if (![block appendLine: buffer length: length partial: partial width: width]) {
         // It's going to be complicated. Invalidate the number of wrapped lines
         // cache.
         num_wrapped_lines_width = -1;
@@ -1102,7 +1158,8 @@ static int RawNumLines(LineBuffer* buffer, int width) {
             BOOL ok = [block popLastLineInto: &temp
                                   withLength: &prefix_len
                                    upToWidth: [block rawBufferSize]+1];
-            prefix = (screen_char_t*) malloc(prefix_len * sizeof(screen_char_t));
+            assert(ok);
+            prefix = (screen_char_t*) malloc(MAX(1, prefix_len) * sizeof(screen_char_t));
             memcpy(prefix, temp, prefix_len * sizeof(screen_char_t));
             NSAssert(ok, @"hasPartial but pop failed.");
         }
@@ -1132,13 +1189,13 @@ static int RawNumLines(LineBuffer* buffer, int width) {
         // Append the prefix if there is one (the prefix was a partial line that we're
         // moving out of the last block into the new block)
         if (prefix) {
-            BOOL ok = [block appendLine: prefix length: prefix_len partial: YES];
+            BOOL ok = [block appendLine: prefix length: prefix_len partial: YES width: width];
             NSAssert(ok, @"append can't fail here");
             free(prefix);
         }
         // Finally, append this line to the new block. We know it'll fit because we made
         // enough room for it.
-        BOOL ok = [block appendLine: buffer length: length partial: partial];
+        BOOL ok = [block appendLine: buffer length: length partial: partial width: width];
         NSAssert(ok, @"append can't fail here");
     } else if (num_wrapped_lines_width == width) {
         // Straightforward addition of a line to an existing block. Update the
@@ -1186,6 +1243,40 @@ static int RawNumLines(LineBuffer* buffer, int width) {
     NSLog(@"Couldn't find line %d", lineNum);
     NSAssert(NO, @"Tried to get non-existant line");
     return NO;
+}
+
+- (ScreenCharArray *)wrappedLineAtIndex:(int)lineNum width:(int)width
+{
+    int line = lineNum;
+    int i;
+    ScreenCharArray *result = [[[ScreenCharArray alloc] init] autorelease];
+    for (i = 0; i < [blocks count]; ++i) {
+        LineBlock* block = [blocks objectAtIndex:i];
+
+        // getNumLinesWithWrapWidth caches its result for the last-used width so
+        // this is usually faster than calling getWrappedLineWithWrapWidth since
+        // most calls to the latter will just decrement line and return NULL.
+        int block_lines = [block getNumLinesWithWrapWidth:width];
+        if (block_lines < line) {
+            line -= block_lines;
+            continue;
+        }
+
+        int length, eol;
+        result.line = [block getWrappedLineWithWrapWidth:width
+                                                 lineNum:&line
+                                              lineLength:&length
+                                       includesEndOfLine:&eol];
+        if (result.line) {
+            result.length = length;
+            result.eol = eol;
+            NSAssert(result.length <= width, @"Length too long");
+            return result;
+        }
+    }
+    NSLog(@"Couldn't find line %d", lineNum);
+    NSAssert(NO, @"Tried to get non-existant line");
+    return nil;
 }
 
 - (int) numLinesWithWidth: (int) width

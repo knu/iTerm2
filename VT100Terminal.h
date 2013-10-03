@@ -106,6 +106,7 @@
 #define VT100CSI_DECDSR      2050       // Device Status Report (DEC specific)
 #define VT100CSI_SET_MODIFIERS 2051     // CSI > Ps; Pm m (Whether to set modifiers for different kinds of key presses; no official name)
 #define VT100CSI_RESET_MODIFIERS 2052     // CSI > Ps n (Set all modifiers values to -1, disabled)
+#define VT100CSI_DECSLRM     2053       // Set left-right margin
 
 // some xterm extension
 #define XTERMCC_WIN_TITLE        86       // Set window title
@@ -181,12 +182,14 @@ typedef struct {
 // character attributes
 #define VT100CHARATTR_ALLOFF   0
 #define VT100CHARATTR_BOLD     1
+#define VT100CHARATTR_ITALIC   3
 #define VT100CHARATTR_UNDER    4
 #define VT100CHARATTR_BLINK    5
 #define VT100CHARATTR_REVERSE  7
 
 // xterm additions
 #define VT100CHARATTR_NORMAL        22
+#define VT100CHARATTR_NOT_ITALIC    23
 #define VT100CHARATTR_NOT_UNDER     24
 #define VT100CHARATTR_STEADY        25
 #define VT100CHARATTR_POSITIVE      27
@@ -274,9 +277,9 @@ enum {
 typedef enum {
     MOUSE_REPORTING_NONE = -1,
     MOUSE_REPORTING_NORMAL = 0,
-    MOUSE_REPORTING_HILITE,
-    MOUSE_REPORTING_BUTTON_MOTION,
-    MOUSE_REPORTING_ALL_MOTION,
+    MOUSE_REPORTING_HILITE = 1,
+    MOUSE_REPORTING_BUTTON_MOTION = 2,
+    MOUSE_REPORTING_ALL_MOTION = 3,
 } MouseMode;
 
 typedef enum {
@@ -291,7 +294,7 @@ typedef enum {
     MOUSE_BUTTON_LEFT = 0,       // left button
     MOUSE_BUTTON_MIDDLE = 1,     // middle button
     MOUSE_BUTTON_RIGHT = 2,      // right button
-    MOUSE_BUTTON_RELEASE = 3,    // release - for 1000/1005/1015 mode
+    MOUSE_BUTTON_NONE = 3,       // no button pressed - for 1000/1005/1015 mode
     MOUSE_BUTTON_SCROLLDOWN = 4, // scroll down
     MOUSE_BUTTON_SCROLLUP = 5    // scroll up
 } MouseButtonNumber;
@@ -347,17 +350,25 @@ typedef enum {
     BOOL REPORT_FOCUS;
 
     int FG_COLORCODE;
-    BOOL alternateForegroundSemantics;
+    int FG_GREEN;
+    int FG_BLUE;
+    ColorMode FG_COLORMODE;
     int BG_COLORCODE;
-    BOOL alternateBackgroundSemantics;
-    int bold, under, blink, reversed;
+    int BG_GREEN;
+    int BG_BLUE;
+    ColorMode BG_COLORMODE;
+    int bold, italic, under, blink, reversed;
 
-    int saveBold, saveUnder, saveBlink, saveReversed;
+    int saveBold, saveItalic, saveUnder, saveBlink, saveReversed;
     int saveCHARSET;
     int saveForeground;
-    BOOL saveAltForeground;
+    int saveFgGreen;
+    int saveFgBlue;
+    ColorMode saveFgColorMode;
     int saveBackground;
-    BOOL saveAltBackground;
+    int saveBgGreen;
+    int saveBgBlue;
+    ColorMode saveBgColorMode;
 
     BOOL TRACE;
 
@@ -373,7 +384,7 @@ typedef enum {
     BOOL useCanonicalParser;
 
     //terminfo
-    char  *key_strings[TERMINFO_KEYS];
+    char *key_strings[TERMINFO_KEYS];
 
     // http://www.xfree86.org/current/ctlseqs.html#Bracketed%20Paste%20Mode
     BOOL bracketedPasteMode_;
@@ -412,7 +423,9 @@ typedef enum {
 - (void)setForegroundColor:(int)fgColorCode alternateSemantics:(BOOL)altsem;
 - (void)setBackgroundColor:(int)bgColorCode alternateSemantics:(BOOL)altsem;
 
+- (void)resetCharset;
 - (void)reset;
+- (void)resetPreservingPrompt:(BOOL)preservePrompt;
 
 - (NSData *)keyArrowUp:(unsigned int)modflag;
 - (NSData *)keyArrowDown:(unsigned int)modflag;

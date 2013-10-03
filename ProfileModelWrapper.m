@@ -119,6 +119,15 @@
     [underlyingModel rebuildMenus];
 }
 
+- (NSArray *)names
+{
+    NSMutableArray *array = [NSMutableArray array];
+    for (ProfileTableRow* theRow in bookmarks) {
+        [array addObject:[theRow name]];
+    }
+    return array;
+}
+
 - (NSArray*)sortDescriptors
 {
     return sortDescriptors;
@@ -127,7 +136,7 @@
 - (void)setFilter:(NSString*)newFilter
 {
     [filter release];
-    filter = [[NSString stringWithString:newFilter] retain];
+    filter = [[NSMutableString stringWithString:newFilter] retain];
 }
 
 @end

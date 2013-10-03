@@ -202,8 +202,8 @@ NSString*	gCrashLogString = nil;
 		NSString*		defaultKey = [emailAddresses primaryIdentifier];
 		if( defaultKey )
 		{
-			unsigned int	defaultIndex = [emailAddresses indexForIdentifier: defaultKey];
-			if( defaultIndex >= 0 )
+			NSUInteger	defaultIndex = [emailAddresses indexForIdentifier: defaultKey];
+			if( defaultIndex != NSNotFound )
 				emailAddr = [emailAddresses valueAtIndex: defaultIndex];
 		}
 	}
@@ -266,7 +266,7 @@ NSString*	gCrashLogString = nil;
 	[postRequest setHTTPMethod: @"POST"];
 	[postRequest setValue: contentType forHTTPHeaderField: @"Content-Type"];
 	[postRequest setValue: agent forHTTPHeaderField: @"User-Agent"];
-	NSString *contentLength = [NSString stringWithFormat:@"%lu", [formData length]];
+	NSString *contentLength = [NSString stringWithFormat:@"%lu", (unsigned long)[formData length]];
 	[postRequest setValue: contentLength forHTTPHeaderField: @"Content-Length"];
 	[postRequest setHTTPBody: formData];
 	

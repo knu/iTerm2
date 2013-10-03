@@ -29,6 +29,7 @@
 #import "ProfileModel.h"
 #import "PreferencePanel.h"
 #import "iTermKeyBindingMgr.h"
+#import "NSStringIterm.h"
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
@@ -132,7 +133,7 @@
     bonjourServices = nil;
 }
 
-+ (NSArray*)encodeColor:(NSColor*)origColor
++ (NSDictionary*)encodeColor:(NSColor*)origColor
 {
     NSColor* color = [origColor colorUsingColorSpaceName:NSCalibratedRGBColorSpace];
     CGFloat red, green, blue, alpha;
@@ -266,9 +267,16 @@
     return [ProfileModel sharedInstance];
 }
 
+- (BOOL)verbose {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:@"iTermDebugBonjour"];
+}
+
 // NSNetServiceBrowser delegate methods
 - (void)netServiceBrowser:(NSNetServiceBrowser *)aNetServiceBrowser didFindService:(NSNetService *)aNetService moreComing:(BOOL)moreComing
 {
+    if ([self verbose]) {
+        NSLog(@"netServiceBrowser:%@ didFindService:%@ moreComing:%d", aNetServiceBrowser, aNetService, (int)moreComing);
+    }
     // resolve the service and add to temporary array to retain it so that
     // resolving works.
     [bonjourServices addObject:aNetService];
@@ -276,11 +284,13 @@
     [aNetService resolveWithTimeout:5];
 }
 
-
 - (void)netServiceBrowser:(NSNetServiceBrowser *)aNetServiceBrowser didRemoveService:(NSNetService *)aNetService moreComing:(BOOL)moreComing
 {
     if (aNetService == nil) {
         return;
+    }
+    if ([self verbose]) {
+        NSLog(@"netServiceBrowser:%@ didRemoveService:%@ moreComing:%d", aNetServiceBrowser, aNetService, (int)moreComing);
     }
 
     // remove host entry from this group
@@ -297,6 +307,9 @@
             || [bookmarkName isEqualToString:sftpName]
 #endif
             ) {
+            if ([self verbose]) {
+                NSLog(@"remove profile with name %@", bookmarkName);
+            }
             [toRemove addObject:[NSNumber numberWithInt:i]];
         }
     }
@@ -378,6 +391,27 @@
     }
 #endif
 }
+
+- (void *)inaddrFromSockaddr:(struct sockaddr *)sa
+{
+    if (sa->sa_family == AF_INET) {
+        return &(((struct sockaddr_in*)sa)->sin_addr);
+    } else {
+        // Assume ipv6
+        return &(((struct sockaddr_in6*)sa)->sin6_addr);
+    }
+}
+
+- (unsigned short)portFromSockaddr:(struct sockaddr *)sa
+{
+    if (sa->sa_family == AF_INET) {
+        return htons(((struct sockaddr_in*)sa)->sin_port);
+    } else {
+        // Assume ipv6
+        return htons(((struct sockaddr_in6*)sa)->sin6_port);
+    }
+}
+
 // NSNetService delegate
 - (void)netServiceDidResolveAddress:(NSNetService *)sender
 {
@@ -386,27 +420,43 @@
     // cancel the resolution
     [sender stop];
 
+    if ([self verbose]) {
+        NSLog(@"netServiceDidResolveAddress:%@", sender);
+    }
     if ([bonjourServices containsObject: sender] == NO) {
+        if ([self verbose]) {
+            NSLog(@"netServiceDidResolveAddress sender not in services %@", bonjourServices);
+        }
         return;
     }
 
     // grab the address
     if ([[sender addresses] count] == 0) {
+        if ([self verbose]) {
+            NSLog(@"netServiceDidResolveAddress sender has no addresses");
+        }
         return;
     }
     NSString* serviceType = [self getBonjourServiceType:[sender type]];
     NSString* serviceName = [sender name];
     NSData* address = [[sender addresses] objectAtIndex: 0];
-    struct sockaddr_in *socketAddress = (struct sockaddr_in *)[address bytes];
+    if ([self verbose]) {
+        NSLog(@"netServiceDidResolveAddress type=%@ name=%@ address=%@", serviceType, serviceName, address);
+    }
+    struct sockaddr *socketAddress = (struct sockaddr *)[address bytes];
     char buffer[INET6_ADDRSTRLEN + 1];
-
-    const char* strAddr = inet_ntop(socketAddress->sin_family, &socketAddress->sin_addr,
-                                    buffer, [address length]);
+    const char *strAddr = inet_ntop(socketAddress->sa_family,
+                                    [self inaddrFromSockaddr:socketAddress],
+                                    buffer,
+                                    sizeof(buffer));
     if (strAddr) {
-          [self _addBonjourHostProfileWithName:serviceName
-                               ipAddressString:[NSString stringWithFormat:@"%s", strAddr]
-                                          port:htons(socketAddress->sin_port)
-                                   serviceType:serviceType];
+        if ([self verbose]) {
+            NSLog(@"netServiceDidResolveAddress add profile with address %s", strAddr);
+        }
+        [self _addBonjourHostProfileWithName:serviceName
+                             ipAddressString:[NSString stringWithFormat:@"%s", strAddr]
+                                        port:[self portFromSockaddr:socketAddress]
+                                 serviceType:serviceType];
 
         // remove from array now that resolving is done
         if ([bonjourServices containsObject:sender]) {
@@ -433,92 +483,75 @@
 
 - (NSString*)getBonjourServiceType:(NSString*)aType
 {
+    if ([self verbose]) {
+        NSLog(@"getBonjourServiceType:%@", aType);
+    }
     NSString *serviceType = aType;
     if ([aType length] <= 0) {
+        if ([self verbose]) {
+            NSLog(@"netServiceDidResolveAddress empty type");
+        }
         return nil;
     }
     NSRange aRange = [serviceType rangeOfString: @"."];
     if(aRange.location != NSNotFound) {
+        if ([self verbose]) {
+            NSLog(@"netServiceDidResolveAddress return value prior to first .");
+        }
         return [serviceType substringWithRange: NSMakeRange(1, aRange.location - 1)];
     } else {
+        if ([self verbose]) {
+            NSLog(@"netServiceDidResolveAddress no . found, return whole value");
+        }
         return serviceType;
     }
 }
 
-static NSString* UserShell() {
-    struct passwd* pw;
-    pw = getpwuid(geteuid());
-    if (!pw) {
-        NSLog(@"No passwd entry for effective uid %d", geteuid());
-        endpwent();
-        return nil;
-    }
-    NSString* shell = [NSString stringWithUTF8String:pw->pw_shell];
-    endpwent();
-    return shell;
-}
-
 + (NSString*)loginShellCommandForBookmark:(Profile*)bookmark
-							 asLoginShell:(BOOL*)asLoginShell
-							forObjectType:(iTermObjectType)objectType
+                            forObjectType:(iTermObjectType)objectType
 {
     NSString* thisUser = NSUserName();
-    NSString* userShell = UserShell();
-	NSString *customDirectoryString;
-	if ([[bookmark objectForKey:KEY_CUSTOM_DIRECTORY] isEqualToString:@"Advanced"]) {
+    NSString *customDirectoryString;
+    if ([[bookmark objectForKey:KEY_CUSTOM_DIRECTORY] isEqualToString:@"Advanced"]) {
         switch (objectType) {
-          case iTermWindowObject:
-              customDirectoryString = [bookmark objectForKey:KEY_AWDS_WIN_OPTION];
-			  break;
-          case iTermTabObject:
-              customDirectoryString = [bookmark objectForKey:KEY_AWDS_TAB_OPTION];
-              break;
-          case iTermPaneObject:
-              customDirectoryString = [bookmark objectForKey:KEY_AWDS_PANE_OPTION];
-              break;
-          default:
-              NSLog(@"Bogus object type %d", (int)objectType);
-              customDirectoryString = @"No";
+            case iTermWindowObject:
+                customDirectoryString = [bookmark objectForKey:KEY_AWDS_WIN_OPTION];
+                break;
+            case iTermTabObject:
+                customDirectoryString = [bookmark objectForKey:KEY_AWDS_TAB_OPTION];
+                break;
+            case iTermPaneObject:
+                customDirectoryString = [bookmark objectForKey:KEY_AWDS_PANE_OPTION];
+                break;
+            default:
+                NSLog(@"Bogus object type %d", (int)objectType);
+                customDirectoryString = @"No";
         }
-	} else {
-		customDirectoryString = [bookmark objectForKey:KEY_CUSTOM_DIRECTORY];
-	}
-
-	if ([customDirectoryString isEqualToString:@"No"]) {
-        // Run login without -l argument: this is a login session and will use the home dir.
-        *asLoginShell = NO;
-        return [NSString stringWithFormat:@"login -fp \"%@\"", thisUser];
-    } else if (userShell) {
-        // This is the normal case when using a custom dir or reusing previous tab's dir:
-        // Run the shell with - as the first char of argv[0]. It won't update
-        // utmpx (only login does), though.
-        *asLoginShell = YES;
-        return userShell;
-    } else if (thisUser) {
-        // No shell known (not sure why this would happen) and we want a non-login shell.
-        *asLoginShell = NO;
-        // -l specifies a NON-LOGIN shell which doesn't changed the pwd.
-        // (there is either a custom dir or we're recycling the last tab's dir)
-        return [NSString stringWithFormat:@"login -fpl \"%@\"", thisUser];
     } else {
-        // Can't get the shell or the user name. Should never happen.
-        *asLoginShell = YES;
-        return @"/bin/bash --login";
+        customDirectoryString = [bookmark objectForKey:KEY_CUSTOM_DIRECTORY];
+    }
+
+    if ([customDirectoryString isEqualToString:@"No"]) {
+        // Run login without -l argument: this is a login session and will use the home dir.
+        return [NSString stringWithFormat:@"login -fp \"%@\"", thisUser];
+    } else {
+        // Not using the home directory. This requires some trickery.
+        // Run iTerm2's executable with a special flag that makes it run the shell as a login shell
+        // (with "-" inserted at the start of argv[0]). See shell_launcher.c for more details.
+        return [NSString stringWithFormat:@"%@ --launch_shell",
+                   [[[NSBundle mainBundle] executablePath] stringWithEscapedShellCharacters]];
     }
 }
 
 + (NSString*)bookmarkCommand:(Profile*)bookmark
-			  isLoginSession:(BOOL*)isLoginSession
-			   forObjectType:(iTermObjectType)objectType
+               forObjectType:(iTermObjectType)objectType
 {
     BOOL custom = [[bookmark objectForKey:KEY_CUSTOM_COMMAND] isEqualToString:@"Yes"];
     if (custom) {
-        *isLoginSession = NO;
         return [bookmark objectForKey:KEY_COMMAND];
     } else {
         return [ITAddressBookMgr loginShellCommandForBookmark:bookmark
-												 asLoginShell:isLoginSession
-												forObjectType:objectType];
+                                                forObjectType:objectType];
     }
 }
 

@@ -53,6 +53,7 @@
 #import "iTerm.h"
 #import "WindowArrangements.h"
 #import "NSView+iTerm.h"
+#import <objc/runtime.h>
 
 //#define HOTKEY_WINDOW_VERBOSE_LOGGING
 #ifdef HOTKEY_WINDOW_VERBOSE_LOGGING
@@ -78,9 +79,9 @@ static NSString *SCRIPT_DIRECTORY = @"~/Library/Application Support/iTerm/Script
 // Comparator for sorting encodings
 static NSInteger _compareEncodingByLocalizedName(id a, id b, void *unused)
 {
-    NSString *sa = [NSString localizedNameOfStringEncoding: [a unsignedIntValue]];
-    NSString *sb = [NSString localizedNameOfStringEncoding: [b unsignedIntValue]];
-    return [sa caseInsensitiveCompare: sb];
+    NSString *sa = [NSString localizedNameOfStringEncoding:[a unsignedIntValue]];
+    NSString *sb = [NSString localizedNameOfStringEncoding:[b unsignedIntValue]];
+    return [sa caseInsensitiveCompare:sb];
 }
 
 static BOOL UncachedIsMountainLionOrLater(void) {
@@ -185,14 +186,14 @@ static BOOL initDone = NO;
         NSFileManager *fileManager = [NSFileManager defaultManager];
 
         // create the "~/Library/Application Support" directory if it does not exist
-        if ([fileManager fileExistsAtPath: [APPLICATION_SUPPORT_DIRECTORY stringByExpandingTildeInPath]] == NO) {
+        if ([fileManager fileExistsAtPath:[APPLICATION_SUPPORT_DIRECTORY stringByExpandingTildeInPath]] == NO) {
             [fileManager createDirectoryAtPath:[APPLICATION_SUPPORT_DIRECTORY stringByExpandingTildeInPath]
                    withIntermediateDirectories:YES
                                     attributes:nil
                                          error:nil];
         }
 
-        if ([fileManager fileExistsAtPath: [SUPPORT_DIRECTORY stringByExpandingTildeInPath]] == NO) {
+        if ([fileManager fileExistsAtPath:[SUPPORT_DIRECTORY stringByExpandingTildeInPath]] == NO) {
             [fileManager createDirectoryAtPath:[SUPPORT_DIRECTORY stringByExpandingTildeInPath]
                    withIntermediateDirectories:YES
                                     attributes:nil
@@ -254,13 +255,41 @@ static BOOL initDone = NO;
     }
 }
 
+- (BOOL)haveTmuxConnection
+{
+    return [self anyTmuxSession] != nil;
+}
+
+- (PTYSession *)anyTmuxSession
+{
+    for (PseudoTerminal* terminal in terminalWindows) {
+        for (PTYSession *session in [terminal sessions]) {
+            if ([session isTmuxClient] || [session isTmuxGateway]) {
+                return session;
+            }
+        }
+    }
+    return nil;
+}
+
 // Action methods
 - (IBAction)newWindow:(id)sender
 {
-    [self launchBookmark:nil inTerminal: nil];
+    [self newWindow:sender possiblyTmux:NO];
 }
 
-- (void) newSessionInTabAtIndex: (id) sender
+- (void)newWindow:(id)sender possiblyTmux:(BOOL)possiblyTmux
+{
+    if (possiblyTmux &&
+        FRONT &&
+        [[FRONT currentSession] isTmuxClient]) {
+        [FRONT newTmuxWindow:sender];
+    } else {
+        [self launchBookmark:nil inTerminal:nil];
+    }
+}
+
+- (void)newSessionInTabAtIndex:(id)sender
 {
     Profile* bookmark = [[ProfileModel sharedInstance] bookmarkWithGuid:[sender representedObject]];
     if (bookmark) {
@@ -283,7 +312,7 @@ static BOOL initDone = NO;
     keyWindowIndexMemo_ = i;
 }
 
-- (void)newSessionInWindowAtIndex: (id) sender
+- (void)newSessionInWindowAtIndex:(id) sender
 {
     Profile* bookmark = [[ProfileModel sharedInstance] bookmarkWithGuid:[sender representedObject]];
     if (bookmark) {
@@ -292,9 +321,8 @@ static BOOL initDone = NO;
 }
 
 // meant for action for menu items that have a submenu
-- (void) noAction: (id) sender
+- (void)noAction:(id)sender
 {
-
 }
 
 - (IBAction)newSessionWithSameProfile:(id)sender
@@ -308,7 +336,22 @@ static BOOL initDone = NO;
 
 - (IBAction)newSession:(id)sender
 {
-    [self launchBookmark:nil inTerminal: FRONT];
+    DLog(@"iTermController newSession:");
+    [self newSession:sender possiblyTmux:NO];
+}
+
+// Launch a new session using the default profile. If the current session is
+// tmux and possiblyTmux is true, open a new tmux session.
+- (void)newSession:(id)sender possiblyTmux:(BOOL)possiblyTmux
+{
+    DLog(@"newSession:%@ possiblyTmux:%d from %@", sender, (int)possiblyTmux, [NSThread callStackSymbols]);
+    if (possiblyTmux &&
+        FRONT &&
+        [[FRONT currentSession] isTmuxClient]) {
+        [FRONT newTmuxTab:sender];
+    } else {
+        [self launchBookmark:nil inTerminal:FRONT];
+    }
 }
 
 // navigation
@@ -340,7 +383,7 @@ static BOOL initDone = NO;
     } else if (button == NSAlertAlternateReturn) {
         return nil;
     } else {
-        NSAssert1(NO, @"Invalid input dialog button %d", button);
+        NSAssert1(NO, @"Invalid input dialog button %d", (int) button);
         return nil;
     }
 }
@@ -473,6 +516,7 @@ static BOOL initDone = NO;
                 }
             }
         }
+        assert(terminal);
 
         // Remove it from terminalsCopy.
         [terminalsCopy removeObjectAtIndex:bestIndex];
@@ -496,7 +540,7 @@ static BOOL initDone = NO;
                                                           h)]
                  forKey:NSViewAnimationEndFrameKey];
         x += w;
-        if (x > frame.size.width - w) {
+        if (x > frame.size.width + frame.origin.x - w) {
             // Wrap around to the next row of windows.
             x = frame.origin.x;
             yOffset -= maxHeight;
@@ -575,7 +619,7 @@ static BOOL initDone = NO;
         [self restorePreviouslyActiveApp];
     }
     if (FRONT == theTerminalWindow) {
-        [self setCurrentTerminal: nil];
+        [self setCurrentTerminal:nil];
     }
     if (theTerminalWindow) {
         [self removeFromTerminalsAtIndex:[terminalWindows indexOfObject:theTerminalWindow]];
@@ -590,7 +634,7 @@ static BOOL initDone = NO;
 
     for (p = [NSString availableStringEncodings]; *p; ++p)
         [tmp addObject:[NSNumber numberWithUnsignedInt:*p]];
-    [tmp sortUsingFunction: _compareEncodingByLocalizedName context:NULL];
+    [tmp sortUsingFunction:_compareEncodingByLocalizedName context:NULL];
 
     return (tmp);
 }
@@ -883,9 +927,9 @@ static BOOL initDone = NO;
                                              windowType:WINDOW_TYPE_NORMAL
                                                  screen:[bookmark objectForKey:KEY_SCREEN] ? [[bookmark objectForKey:KEY_SCREEN] intValue] : -1
                                                isHotkey:NO] autorelease];
-	if ([[bookmark objectForKey:KEY_HIDE_AFTER_OPENING] boolValue]) {
-		[term hideAfterOpening];
-	}
+        if ([[bookmark objectForKey:KEY_HIDE_AFTER_OPENING] boolValue]) {
+                [term hideAfterOpening];
+        }
     [self addInTerminals:term];
     return term;
 }
@@ -903,6 +947,9 @@ static BOOL initDone = NO;
         aDict = [self defaultBookmark];
     }
 
+    if (theTerm && [[aDict objectForKey:KEY_PREVENT_TAB] boolValue]) {
+        theTerm = nil;
+    }
     // Where do we execute this command?
     BOOL toggle = NO;
     if (theTerm == nil) {
@@ -920,8 +967,8 @@ static BOOL initDone = NO;
                                                  windowType:windowType
                                                      screen:[aDict objectForKey:KEY_SCREEN] ? [[aDict objectForKey:KEY_SCREEN] intValue] : -1
                                                    isHotkey:disableLionFullscreen] autorelease];
-		if ([[aDict objectForKey:KEY_HIDE_AFTER_OPENING] boolValue]) {
-			[term hideAfterOpening];
+                if ([[aDict objectForKey:KEY_HIDE_AFTER_OPENING] boolValue]) {
+                        [term hideAfterOpening];
         }
         [self addInTerminals:term];
         if (disableLionFullscreen) {
@@ -975,6 +1022,10 @@ static BOOL initDone = NO;
         }
     }
 
+    if (theTerm && [[aDict objectForKey:KEY_PREVENT_TAB] boolValue]) {
+        theTerm = nil;
+    }
+
     // Where do we execute this command?
     BOOL toggle = NO;
     if (theTerm == nil) {
@@ -982,9 +1033,9 @@ static BOOL initDone = NO;
         term = [[[PseudoTerminal alloc] initWithSmartLayout:YES
                                                  windowType:[self _windowTypeForBookmark:aDict]
                                                      screen:[aDict objectForKey:KEY_SCREEN] ? [[aDict objectForKey:KEY_SCREEN] intValue] : -1] autorelease];
-		if ([[aDict objectForKey:KEY_HIDE_AFTER_OPENING] boolValue]) {
-			[term hideAfterOpening];
-		}
+                if ([[aDict objectForKey:KEY_HIDE_AFTER_OPENING] boolValue]) {
+                        [term hideAfterOpening];
+                }
         [self addInTerminals:term];
         toggle = (([term windowType] == WINDOW_TYPE_FULL_SCREEN) ||
                   ([term windowType] == WINDOW_TYPE_LION_FULL_SCREEN));
@@ -994,7 +1045,6 @@ static BOOL initDone = NO;
 
     id result = [term addNewSession:aDict
                         withCommand:command
-                     asLoginSession:NO
                       forObjectType:theTerm ? iTermTabObject : iTermWindowObject];
     if (toggle) {
         [term delayedEnterFullscreen];
@@ -1014,9 +1064,8 @@ static BOOL initDone = NO;
     // Automatically fill in ssh command if command is exactly equal to $$ or it's a login shell.
     BOOL ignore;
     if (aDict == nil ||
-		[[ITAddressBookMgr bookmarkCommand:aDict
-							isLoginSession:&ignore
-							 forObjectType:objectType] isEqualToString:@"$$"] ||
+        [[ITAddressBookMgr bookmarkCommand:aDict
+                             forObjectType:objectType] isEqualToString:@"$$"] ||
         ![[aDict objectForKey:KEY_CUSTOM_COMMAND] isEqualToString:@"Yes"]) {
         Profile* prototype = aDict;
         if (!prototype) {
@@ -1030,7 +1079,7 @@ static BOOL initDone = NO;
         }
 
         NSMutableDictionary *tempDict = [NSMutableDictionary dictionaryWithDictionary:prototype];
-        NSURL *urlRep = [NSURL URLWithString: url];
+        NSURL *urlRep = [NSURL URLWithString:url];
         NSString *urlType = [urlRep scheme];
 
         if ([urlType compare:@"ssh" options:NSCaseInsensitiveSearch] == NSOrderedSame) {
@@ -1070,6 +1119,10 @@ static BOOL initDone = NO;
         }
     }
 
+    if (theTerm && [[aDict objectForKey:KEY_PREVENT_TAB] boolValue]) {
+        theTerm = nil;
+    }
+
     // Where do we execute this command?
     BOOL toggle = NO;
     if (theTerm == nil) {
@@ -1077,10 +1130,10 @@ static BOOL initDone = NO;
         term = [[[PseudoTerminal alloc] initWithSmartLayout:YES
                                                  windowType:[self _windowTypeForBookmark:aDict]
                                                      screen:[aDict objectForKey:KEY_SCREEN] ? [[aDict objectForKey:KEY_SCREEN] intValue] : -1] autorelease];
-		if ([[aDict objectForKey:KEY_HIDE_AFTER_OPENING] boolValue]) {
-			[term hideAfterOpening];
-		}
-        [self addInTerminals: term];
+                if ([[aDict objectForKey:KEY_HIDE_AFTER_OPENING] boolValue]) {
+                        [term hideAfterOpening];
+                }
+        [self addInTerminals:term];
         toggle = (([term windowType] == WINDOW_TYPE_FULL_SCREEN) ||
                   ([term windowType] == WINDOW_TYPE_LION_FULL_SCREEN));
     } else {
@@ -1096,18 +1149,18 @@ static BOOL initDone = NO;
 
 - (void)launchScript:(id)sender
 {
-    NSString *fullPath = [NSString stringWithFormat: @"%@/%@", [SCRIPT_DIRECTORY stringByExpandingTildeInPath], [sender title]];
+    NSString *fullPath = [NSString stringWithFormat:@"%@/%@", [SCRIPT_DIRECTORY stringByExpandingTildeInPath], [sender title]];
 
-    if ([[[sender title] pathExtension] isEqualToString: @"scpt"]) {
+    if ([[[sender title] pathExtension] isEqualToString:@"scpt"]) {
         NSAppleScript *script;
         NSDictionary *errorInfo = [NSDictionary dictionary];
-        NSURL *aURL = [NSURL fileURLWithPath: fullPath];
+        NSURL *aURL = [NSURL fileURLWithPath:fullPath];
 
         // Make sure our script suite registry is loaded
         [NSScriptSuiteRegistry sharedScriptSuiteRegistry];
 
-        script = [[NSAppleScript alloc] initWithContentsOfURL: aURL error: &errorInfo];
-        [script executeAndReturnError: &errorInfo];
+        script = [[NSAppleScript alloc] initWithContentsOfURL:aURL error:&errorInfo];
+        [script executeAndReturnError:&errorInfo];
         [script release];
     }
     else {
@@ -1196,7 +1249,7 @@ static BOOL initDone = NO;
         // 10.6 function.
 
         // app = [runningApplicationClass_ runningApplicationWithProcessIdentifier:[previouslyActiveAppPID_ intValue]];
-        NSMethodSignature *sig = [runningApplicationClass_->isa instanceMethodSignatureForSelector:@selector(runningApplicationWithProcessIdentifier:)];
+        NSMethodSignature *sig = [object_getClass(runningApplicationClass_) instanceMethodSignatureForSelector:@selector(runningApplicationWithProcessIdentifier:)];
         NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
         [inv setTarget:runningApplicationClass_];
         [inv setSelector:@selector(runningApplicationWithProcessIdentifier:)];
@@ -1281,6 +1334,15 @@ static void RollInHotkeyTerm(PseudoTerminal* term)
 
         case WINDOW_TYPE_LEFT:
             rect.origin.x = screenFrame.origin.x;
+            rect.origin.y = screenFrame.origin.y;
+
+            [[NSAnimationContext currentContext] setDuration:[[PreferencePanel sharedInstance] hotkeyTermAnimationDuration]];
+            [[[term window] animator] setFrame:rect display:YES];
+            [[[term window] animator] setAlphaValue:1];
+            break;
+
+        case WINDOW_TYPE_RIGHT:
+            rect.origin.x = screenFrame.origin.x + screenFrame.size.width - rect.size.width;
             rect.origin.y = screenFrame.origin.y;
 
             [[NSAnimationContext currentContext] setDuration:[[PreferencePanel sharedInstance] hotkeyTermAnimationDuration]];
@@ -1465,6 +1527,13 @@ static void RollOutHotkeyTerm(PseudoTerminal* term, BOOL itermWasActiveWhenHotke
             [[[term window] animator] setAlphaValue:0];
             break;
 
+        case WINDOW_TYPE_RIGHT:
+            rect.origin.x = screenFrame.origin.x + screenFrame.size.width;
+            [[NSAnimationContext currentContext] setDuration:[[PreferencePanel sharedInstance] hotkeyTermAnimationDuration]];
+            [[[term window] animator] setFrame:rect display:YES];
+            [[[term window] animator] setAlphaValue:0];
+            break;
+
         case WINDOW_TYPE_LION_FULL_SCREEN:  // Shouldn't happen
         case WINDOW_TYPE_FULL_SCREEN:
             [[NSAnimationContext currentContext] setDuration:[[PreferencePanel sharedInstance] hotkeyTermAnimationDuration]];
@@ -1612,6 +1681,11 @@ static void RollOutHotkeyTerm(PseudoTerminal* term, BOOL itermWasActiveWhenHotke
                 [[term window] setFrame:rect display:YES];
                 break;
 
+            case WINDOW_TYPE_RIGHT:
+                rect.origin.x = screenFrame.origin.x + screenFrame.size.width;
+                HKWLog(@"FAST: Set y=%f", rect.origin.y);
+                [[term window] setFrame:rect display:YES];
+                break;
 
             case WINDOW_TYPE_LION_FULL_SCREEN:  // Shouldn't happen.
             case WINDOW_TYPE_FULL_SCREEN:
@@ -1981,7 +2055,7 @@ NSString *terminalsKey = @"terminals";
 -(id)valueInTerminalsAtIndex:(unsigned)theIndex
 {
     //NSLog(@"iTerm: valueInTerminalsAtIndex %d: %@", theIndex, [terminalWindows objectAtIndex: theIndex]);
-    return ([terminalWindows objectAtIndex: theIndex]);
+    return ([terminalWindows objectAtIndex:theIndex]);
 }
 
 - (void)setCurrentTerminal:(PseudoTerminal*)thePseudoTerminal
@@ -1990,7 +2064,7 @@ NSString *terminalsKey = @"terminals";
 
     // make sure this window is the key window
     if ([thePseudoTerminal windowInited] && [[thePseudoTerminal window] isKeyWindow] == NO) {
-        [[thePseudoTerminal window] makeKeyAndOrderFront: self];
+        [[thePseudoTerminal window] makeKeyAndOrderFront:self];
         if ([thePseudoTerminal fullScreen]) {
           [thePseudoTerminal hideMenuBar];
         }
@@ -2006,7 +2080,7 @@ NSString *terminalsKey = @"terminals";
 -(void)replaceInTerminals:(PseudoTerminal *)object atIndex:(unsigned)theIndex
 {
     // NSLog(@"iTerm: replaceInTerminals 0x%x atIndex %d", object, theIndex);
-    [terminalWindows replaceObjectAtIndex: theIndex withObject: object];
+    [terminalWindows replaceObjectAtIndex:theIndex withObject:object];
     [self updateWindowTitles];
 }
 
@@ -2024,25 +2098,21 @@ NSString *terminalsKey = @"terminals";
     [self updateWindowTitles];
 }
 
--(void)insertInTerminals:(PseudoTerminal *)object atIndex:(unsigned)theIndex
+- (void)insertInTerminals:(PseudoTerminal *)object atIndex:(unsigned)theIndex
 {
-    if ([terminalWindows containsObject: object] == YES) {
+    if ([terminalWindows containsObject:object] == YES) {
         return;
     }
 
     [terminalWindows insertObject:object atIndex:theIndex];
     [self updateWindowTitles];
-    if (![object isInitialized]) {
-        [object initWithSmartLayout:YES
-                         windowType:WINDOW_TYPE_NORMAL
-                             screen:-1];
-    }
+    assert([object isInitialized]);
 }
 
--(void)removeFromTerminalsAtIndex:(unsigned)theIndex
+- (void)removeFromTerminalsAtIndex:(unsigned)theIndex
 {
     // NSLog(@"iTerm: removeFromTerminalsAtInde %d", theIndex);
-    [terminalWindows removeObjectAtIndex: theIndex];
+    [terminalWindows removeObjectAtIndex:theIndex];
     [self updateWindowTitles];
 }
 

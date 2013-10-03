@@ -22,6 +22,7 @@
 }
 
 // Returns nil on error
+// TODO: Test with italics
 - (NSData *)dataForHistoryLine:(NSString *)hist
                   withTerminal:(VT100Terminal *)terminal
         ambiguousIsDoubleWidth:(BOOL)ambiguousIsDoubleWidth
@@ -47,7 +48,7 @@
                                         &len,
                                         ambiguousIsDoubleWidth,
                                         NULL);
-                    if ([terminal charset]) {
+                    if (token.type == VT100_ASCIISTRING && [terminal charset]) {
                         TranslateCharacterSet(screenChars, len);
                     }
                     [result appendBytes:screenChars

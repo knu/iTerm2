@@ -6,6 +6,7 @@
 //
 
 #import "PTYSplitView.h"
+#import "iTermApplicationDelegate.h"  // For DLog
 
 @implementation PTYSplitView
 
@@ -39,10 +40,11 @@
     NSArray *subviews = [self subviews];
     NSPoint locationInWindow = [theEvent locationInWindow];
     locationInWindow.y--;
-    NSPoint locationInView = [self convertPointFromBase:locationInWindow];
+    NSPoint locationInView = [self convertPoint:locationInWindow toView:self];
     int x, y;
     int bestDistance = -1;
-    if ([self isVertical]) {
+    const BOOL isVertical = [self isVertical];
+    if (isVertical) {
         int mouseX = locationInView.x;
         x = 0;
         int bestX = 0;
@@ -60,16 +62,17 @@
         int mouseY = locationInView.y;
         int bestY = 0;
         y = 0;
-        for (int i = 0; i < subviews.count; i++) {
-            y += [[subviews objectAtIndex:i] frame].size.height;
+        for (int i = subviews.count - 1; i >= 0; i--) {
+            float subviewHeight = [[subviews objectAtIndex:i] frame].size.height;
+            y += subviewHeight;
             if (bestDistance < 0 || abs(y - mouseY) < bestDistance) {
                 bestDistance = abs(y - mouseY);
-                clickedOnSplitterIndex = i;
+                clickedOnSplitterIndex = i - 1;
                 bestY = y;
             }
             y += [self dividerThickness];
         }
-        y = bestY;
+        y = self.frame.size.height - bestY;
     }
 
     [[self delegate] splitView:self draggingWillBeginOfSplit:clickedOnSplitterIndex];
@@ -77,7 +80,7 @@
     // mouseDown blocks and lets the user drag things around.
     if (clickedOnSplitterIndex < 0) {
         // You don't seem to have clicked on a splitter.
-		NSLog(@"Click in PTYSplitView was not on splitter");
+        DLog(@"Click in PTYSplitView was not on splitter");
         return;
     }
     [super mouseDown:theEvent];
@@ -85,7 +88,7 @@
     // See how much the view after the splitter moved
     NSSize changePx = NSZeroSize;
     NSRect frame = [[subviews objectAtIndex:clickedOnSplitterIndex] frame];
-    if ([self isVertical]) {
+    if (isVertical) {
         changePx.width = (frame.origin.x + frame.size.width) - x;
     } else {
         changePx.height = (frame.origin.y + frame.size.height) - y;

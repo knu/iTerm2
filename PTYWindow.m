@@ -29,15 +29,12 @@
  */
 
 #import "iTerm.h"
-#import "iTermApplication.h"
 #import "PTYWindow.h"
 #import "PreferencePanel.h"
 #import "PseudoTerminal.h"
 #import "FutureMethods.h"
 #import "iTermController.h"
 #import "iTermApplicationDelegate.h"
-// This is included because the blurring code uses undocumented APIs to do its thing.
-#import <CGSInternal.h>
 
 #define DEBUG_METHOD_ALLOC  0
 #define DEBUG_METHOD_TRACE  0
@@ -83,34 +80,6 @@
     }
 
     return self;
-}
-
-typedef CGError CGSSetWindowBackgroundBlurRadiusFunction(CGSConnectionID cid, CGSWindowID wid, NSUInteger blur);
-
-static void *GetFunctionByName(NSString *library, char *func) {
-    CFBundleRef bundle;
-    CFURLRef bundleURL = CFURLCreateWithFileSystemPath(kCFAllocatorDefault, (CFStringRef) library, kCFURLPOSIXPathStyle, true);
-    CFStringRef functionName = CFStringCreateWithCString(kCFAllocatorDefault, func, kCFStringEncodingASCII);    
-    bundle = CFBundleCreate(kCFAllocatorDefault, bundleURL);
-    void *f = NULL;
-    if (bundle) {
-        f = CFBundleGetFunctionPointerForName(bundle, functionName);
-        CFRelease(bundle);
-    }
-    CFRelease(functionName);
-    CFRelease(bundleURL);
-    return f;
-}
-
-static CGSSetWindowBackgroundBlurRadiusFunction* GetCGSSetWindowBackgroundBlurRadiusFunction() {
-    static BOOL tried = NO;
-    static CGSSetWindowBackgroundBlurRadiusFunction *function = NULL;
-    if (!tried) {
-        function  = GetFunctionByName(@"/System/Library/Frameworks/ApplicationServices.framework",
-                                      "CGSSetWindowBackgroundBlurRadius");
-        tried = YES;
-    }
-    return function;
 }
 
 - (void)encodeRestorableStateWithCoder:(NSCoder *)coder
@@ -326,7 +295,7 @@ static CGSSetWindowBackgroundBlurRadiusFunction* GetCGSSetWindowBackgroundBlurRa
                 }
 
 
-                const char const * names[] = {"TL", "TR", "BL", "BR"};
+                char const * names[] = {"TL", "TR", "BL", "BR"};
                 PtyLog(@"%s: testRect:%@, bad:%.2f",
                         names[i], NSStringFromRect(testRects[i]), badness);
 
@@ -374,38 +343,24 @@ end:
     [super makeKeyAndOrderFront:sender];
 }
 
-- (void)toggleToolbarShownSavingState:(BOOL)shouldSave
-                               sender:(id)sender
+- (void)toggleToolbarShown:(id)sender
 {
+#if DEBUG_METHOD_TRACE
+    NSLog(@"%s(%d):-[PTYWindow toggleToolbarShown]",
+          __FILE__, __LINE__);
+#endif
     id delegate = [self delegate];
 
     // Let our delegate know
-    if ([delegate conformsToProtocol:@protocol(PTYWindowDelegateProtocol)]) {
-        [delegate windowWillToggleToolbarVisibility:self];
-    }
-    [super toggleToolbarShown:sender];
-    if (shouldSave) {
-        iTermApplicationDelegate *itad =
-            (iTermApplicationDelegate *)[[iTermApplication sharedApplication] delegate];
-        [itad setToolbarShouldBeVisible:[[self toolbar] isVisible]];
-    }
-    
-    // Let our delegate know (but not right away; it takes a while for the change to take effect apparently)
-    if ([delegate conformsToProtocol:@protocol(PTYWindowDelegateProtocol)]) {
-        [delegate performSelector:@selector(windowDidToggleToolbarVisibility:)
-                       withObject:self
-                       afterDelay:0];
-    }
-}
+    if([delegate conformsToProtocol: @protocol(PTYWindowDelegateProtocol)])
+    [delegate windowWillToggleToolbarVisibility: self];
 
-- (void)toggleToolbarShownNoSave:(id)sender
-{
-    [self toggleToolbarShownSavingState:NO sender:sender];
-}
+    [super toggleToolbarShown: sender];
 
-- (void)toggleToolbarShown:(id)sender
-{
-    [self toggleToolbarShownSavingState:YES sender:sender];
+    // Let our delegate know
+    if([delegate conformsToProtocol: @protocol(PTYWindowDelegateProtocol)])
+    [delegate windowDidToggleToolbarVisibility: self];
+
 }
 
 - (BOOL)canBecomeKeyWindow

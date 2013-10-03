@@ -127,7 +127,7 @@ typedef struct FindContext {
 
 // Try to append a line to the end of the buffer. Returns false if it does not fit. If length > buffer_size it will never succeed.
 // Callers should split such lines into multiple pieces.
-- (BOOL) appendLine: (screen_char_t*) buffer length: (int) length partial: (BOOL) partial;
+- (BOOL) appendLine: (screen_char_t*) buffer length: (int) length partial: (BOOL) partial width: (int) width;
 
 // Try to get a line that is lineNum after the first line in this block after wrapping them to a given width.
 // If the line is present, return a pointer to its start and fill in *lineLength with the number of bytes in the line.
@@ -250,7 +250,13 @@ typedef struct FindContext {
 // characters will be modified.
 // 0 <= lineNum < numLinesWithWidth:width
 // Returns EOL code.
+// DEPRECATED, use wrappedLineAtIndex:width: instead.
 - (int) copyLineToBuffer: (screen_char_t*) buffer width: (int) width lineNum: (int) lineNum;
+
+// Like the above but with a saner way of holding the returned data. Callers are advised not
+// to modify the screen_char_t's returned, but the ScreenCharArray is otherwise safe to
+// mutate.
+- (ScreenCharArray *)wrappedLineAtIndex:(int)lineNum width:(int)width;
 
 // Copy up to width chars from the last line into *ptr. The last line will be removed or
 // truncated from the buffer. Sets *includesEndOfLine to true if this line should have a

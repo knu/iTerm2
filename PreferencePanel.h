@@ -162,8 +162,12 @@ typedef enum { CURSOR_UNDERLINE, CURSOR_VERTICAL, CURSOR_BOX } ITermCursorType;
     BOOL defaultCmdSelection;
 
     // pass on ctrl-click
-    IBOutlet NSButton* passOnControlLeftClick;
+    IBOutlet NSButton* controlLeftClickActsLikeRightClick;
     BOOL defaultPassOnControlLeftClick;
+
+    // Opt-click moves cursor
+    IBOutlet NSButton *optionClickMovesCursor;
+    BOOL defaultOptionClickMovesCursor;
 
     // Zoom vertically only
     IBOutlet NSButton *maxVertically;
@@ -455,6 +459,7 @@ typedef enum { CURSOR_UNDERLINE, CURSOR_VERTICAL, CURSOR_BOX } ITermCursorType;
     IBOutlet NSButton* blinkAllowed;
     IBOutlet NSButton* useBoldFont;
     IBOutlet NSButton* useBrightBold;
+    IBOutlet NSButton* useItalicFont;
     IBOutlet NSSlider *transparency;
     IBOutlet NSSlider *blend;
     IBOutlet NSButton* blur;
@@ -463,6 +468,7 @@ typedef enum { CURSOR_UNDERLINE, CURSOR_VERTICAL, CURSOR_BOX } ITermCursorType;
     IBOutlet NSButton* nonasciiAntiAliased;
     IBOutlet NSButton* backgroundImage;
     NSString* backgroundImageFilename;
+    IBOutlet NSButton* backgroundImageTiled;
     IBOutlet NSImageView* backgroundImagePreview;
     IBOutlet NSTextField* displayFontsLabel;
     IBOutlet NSButton* displayRegularFontButton;
@@ -474,6 +480,7 @@ typedef enum { CURSOR_UNDERLINE, CURSOR_VERTICAL, CURSOR_BOX } ITermCursorType;
 
     // Terminal tab
     IBOutlet NSButton* disableWindowResizing;
+    IBOutlet NSButton* preventTab;
     IBOutlet NSButton* hideAfterOpening;
     IBOutlet NSButton* syncTitle;
     IBOutlet NSButton* closeSessionsOnEnd;
@@ -656,6 +663,7 @@ typedef enum {
 // when there was a global growl setting as well as a per-profile setting).
 - (BOOL)enableGrowl;
 - (BOOL)cmdSelection;
+- (BOOL)optionClickMovesCursor;
 - (BOOL)passOnControlLeftClick;
 - (BOOL)maxVertically;
 - (BOOL)closingHotkeySwitchesSpaces;
@@ -678,6 +686,7 @@ typedef enum {
 - (BOOL)openArrangementAtStartup;
 - (int)irMemory;
 - (BOOL)hotkey;
+- (short)hotkeyChar;  // Nonzero if hotkey is set validly
 - (int)hotkeyCode;
 - (int)hotkeyModifiers;
 - (NSTextField*)hotkeyField;
@@ -769,6 +778,7 @@ typedef enum {
 - (IBAction)copyBookmarks:(id)sender;
 - (IBAction)cancelCopyBookmarks:(id)sender;
 - (void)copyAttributes:(BulkCopySettings)attributes fromBookmark:(NSString*)guid toBookmark:(NSString*)destGuid;
+- (void)sanityCheckHotKey;
 
 - (int)control;
 - (int)leftOption;

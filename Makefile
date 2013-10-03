@@ -40,7 +40,9 @@ Deployment:
 	chmod -R go+rX build/Deployment
 
 Nightly: force
+	cp nightly-iTerm.plist iTerm.plist
 	xcodebuild -parallelizeTargets -alltargets -configuration Nightly && \
+	git checkout -- iTerm.plist
 	chmod -R go+rX build/Nightly
 
 run: Development
@@ -76,8 +78,12 @@ canary:
 	./canary.sh
 
 release:
+	echo "You need to unlock your keychain for signing to work."
+	security unlock-keychain ~/Library/Keychains/login.keychain
 	cp release-iTerm.plist iTerm.plist
 	make Deployment
-	./release.sh
+	cp legacy-iTerm.plist iTerm.plist
+	make LeopardPPC
+	./release.sh RanFromMakefile
 
 force:

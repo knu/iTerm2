@@ -30,6 +30,7 @@
 		1D085F9F16F137D900B7FCE9 /* RoundedRectView.m in Sources */ = {isa = PBXBuildFile; fileRef = 1D085F9D16F137D900B7FCE9 /* RoundedRectView.m */; };
 		1D085FA216F138A100B7FCE9 /* ToastWindowController.h in Headers */ = {isa = PBXBuildFile; fileRef = 1D085FA016F138A000B7FCE9 /* ToastWindowController.h */; };
 		1D085FA316F138A100B7FCE9 /* ToastWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = 1D085FA116F138A000B7FCE9 /* ToastWindowController.m */; };
+		1D0AABC217B59B3D0072B5AF /* SearchResult.m in Sources */ = {isa = PBXBuildFile; fileRef = 1DC393C417B59B08000EE0F2 /* SearchResult.m */; };
 		1D0B613814A7BC1200C57C33 /* TmuxControllerRegistry.h in Headers */ = {isa = PBXBuildFile; fileRef = 1D0B613614A7BC1200C57C33 /* TmuxControllerRegistry.h */; };
 		1D0B613914A7BC1200C57C33 /* TmuxControllerRegistry.m in Sources */ = {isa = PBXBuildFile; fileRef = 1D0B613714A7BC1200C57C33 /* TmuxControllerRegistry.m */; };
 		1D0B613C14A7C76500C57C33 /* TmuxWindowsTable.h in Headers */ = {isa = PBXBuildFile; fileRef = 1D0B613A14A7C76500C57C33 /* TmuxWindowsTable.h */; };
@@ -242,6 +243,7 @@
 		1D67ABAC14285D6000D5DA4E /* NSFileManager+DirectoryLocations.m in Sources */ = {isa = PBXBuildFile; fileRef = 1D67ABAA14285D6000D5DA4E /* NSFileManager+DirectoryLocations.m */; };
 		1D6944D7169E96AC00C7048A /* ThreeFingerTapGestureRecognizer.h in Headers */ = {isa = PBXBuildFile; fileRef = 1D6944D5169E96AC00C7048A /* ThreeFingerTapGestureRecognizer.h */; };
 		1D6944D8169E96AC00C7048A /* ThreeFingerTapGestureRecognizer.m in Sources */ = {isa = PBXBuildFile; fileRef = 1D6944D6169E96AC00C7048A /* ThreeFingerTapGestureRecognizer.m */; };
+		1D699BC417CABC060094F0C1 /* CharacterRunInline.h in Headers */ = {isa = PBXBuildFile; fileRef = 1D699BC317CABC060094F0C1 /* CharacterRunInline.h */; };
 		1D6A5FDF140D7AA000DE19F8 /* IBarCursorXMR.png in Resources */ = {isa = PBXBuildFile; fileRef = 1D6A5FDE140D7AA000DE19F8 /* IBarCursorXMR.png */; };
 		1D6C18BE12951A3C00937A4A /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DEB293D1288899A00B2CB9F /* Carbon.framework */; };
 		1D6C4D5A122329F000E0AA3E /* ColorPresets.plist in Resources */ = {isa = PBXBuildFile; fileRef = 1D6C4D59122329F000E0AA3E /* ColorPresets.plist */; };
@@ -257,8 +259,6 @@
 		1D7C1AD31276FD6E00461E55 /* PasteboardHistory.xib in Resources */ = {isa = PBXBuildFile; fileRef = 1D7C1AD11276FD6E00461E55 /* PasteboardHistory.xib */; };
 		1D7C1D1212772ECC00461E55 /* NSDateFormatterExtras.h in Headers */ = {isa = PBXBuildFile; fileRef = 1D7C1D1012772ECC00461E55 /* NSDateFormatterExtras.h */; };
 		1D7C1D1312772ECC00461E55 /* NSDateFormatterExtras.m in Sources */ = {isa = PBXBuildFile; fileRef = 1D7C1D1112772ECC00461E55 /* NSDateFormatterExtras.m */; };
-		1D823C4812F92B3F0028422B /* screen.png in Resources */ = {isa = PBXBuildFile; fileRef = 1D823C4712F92B3F0028422B /* screen.png */; };
-		1D8255F714649F8E007CAE78 /* PrefsMouse.tiff in Resources */ = {isa = PBXBuildFile; fileRef = 1D8255F614649F8E007CAE78 /* PrefsMouse.tiff */; };
 		1D8255F9146869D8007CAE78 /* DefaultPointerActions.plist in Resources */ = {isa = PBXBuildFile; fileRef = 1D8255F8146869D8007CAE78 /* DefaultPointerActions.plist */; };
 		1D8255FC14687EE8007CAE78 /* PointerPrefsController.h in Headers */ = {isa = PBXBuildFile; fileRef = 1D8255FA14687EE8007CAE78 /* PointerPrefsController.h */; };
 		1D8255FD14687EE8007CAE78 /* PointerPrefsController.m in Sources */ = {isa = PBXBuildFile; fileRef = 1D8255FB14687EE8007CAE78 /* PointerPrefsController.m */; };
@@ -271,6 +271,9 @@
 		1D85D1EF1306687700A3E998 /* RegexKitLite.m in Sources */ = {isa = PBXBuildFile; fileRef = 1D85D1DA1306687700A3E998 /* RegexKitLite.m */; };
 		1D8C6BF5126592DF00E2744E /* EncodingsWithLowerCase.plist in Resources */ = {isa = PBXBuildFile; fileRef = 1D8C6BF4126592DF00E2744E /* EncodingsWithLowerCase.plist */; };
 		1D8F396B13EB7A2C0025B80B /* BroadcastInput.png in Resources */ = {isa = PBXBuildFile; fileRef = 1D8F396A13EB7A2C0025B80B /* BroadcastInput.png */; };
+		1D8FC67C17E67FA700A82402 /* shell_launcher.c in Sources */ = {isa = PBXBuildFile; fileRef = 1D8FC67B17E67FA700A82402 /* shell_launcher.c */; };
+		1D9053C617A5CCF100A0B64E /* MovingAverage.h in Headers */ = {isa = PBXBuildFile; fileRef = 1D9053C417A5CCF100A0B64E /* MovingAverage.h */; };
+		1D9053C717A5CCF100A0B64E /* MovingAverage.m in Sources */ = {isa = PBXBuildFile; fileRef = 1D9053C517A5CCF100A0B64E /* MovingAverage.m */; };
 		1D93D33512695442007F741B /* DVR.h in Headers */ = {isa = PBXBuildFile; fileRef = 1D93D33312695442007F741B /* DVR.h */; };
 		1D93D33612695442007F741B /* DVR.m in Sources */ = {isa = PBXBuildFile; fileRef = 1D93D33412695442007F741B /* DVR.m */; };
 		1D93D3471269741B007F741B /* DVRBuffer.h in Headers */ = {isa = PBXBuildFile; fileRef = 1D93D3451269741B007F741B /* DVRBuffer.h */; };
@@ -318,8 +321,6 @@
 		1DA030FA1328BD7C00D7E7DB /* wrap_to_top.png in Resources */ = {isa = PBXBuildFile; fileRef = 1DA030F81328BD7C00D7E7DB /* wrap_to_top.png */; };
 		1DA26AC015007507004B5792 /* BackgroundThread.h in Headers */ = {isa = PBXBuildFile; fileRef = 1DA26ABE15007507004B5792 /* BackgroundThread.h */; };
 		1DA26AC115007507004B5792 /* BackgroundThread.m in Sources */ = {isa = PBXBuildFile; fileRef = 1DA26ABF15007507004B5792 /* BackgroundThread.m */; };
-		1DA3323B1692175800C77F53 /* SharedCharacterRunData.h in Headers */ = {isa = PBXBuildFile; fileRef = 1DA332391692175800C77F53 /* SharedCharacterRunData.h */; };
-		1DA3323C1692175800C77F53 /* SharedCharacterRunData.m in Sources */ = {isa = PBXBuildFile; fileRef = 1DA3323A1692175800C77F53 /* SharedCharacterRunData.m */; };
 		1DA34E04165F268F00AA91C4 /* IBarCursor@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 1DA34E02165F268F00AA91C4 /* IBarCursor@2x.png */; };
 		1DA34E05165F268F00AA91C4 /* IBarCursorXMR@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 1DA34E03165F268F00AA91C4 /* IBarCursorXMR@2x.png */; };
 		1DA7894814AC19F500C8FBD9 /* Growl in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DA7894714AC19F500C8FBD9 /* Growl */; };
@@ -344,15 +345,8 @@
 		1DC38818148E840700B89F7C /* SolidColorView.h in Headers */ = {isa = PBXBuildFile; fileRef = 1DC38816148E840600B89F7C /* SolidColorView.h */; };
 		1DC38819148E840700B89F7C /* SolidColorView.m in Sources */ = {isa = PBXBuildFile; fileRef = 1DC38817148E840700B89F7C /* SolidColorView.m */; };
 		1DC742A0127C96F90069594C /* IBarCursor.png in Resources */ = {isa = PBXBuildFile; fileRef = 1DC7429F127C96F90069594C /* IBarCursor.png */; };
-		1DCA5ECC13EE4DA800B7725E /* arrangement.png in Resources */ = {isa = PBXBuildFile; fileRef = 1DCA5ECB13EE4DA800B7725E /* arrangement.png */; };
 		1DCA5ECF13EE507800B7725E /* WindowArrangements.h in Headers */ = {isa = PBXBuildFile; fileRef = 1DCA5ECD13EE507800B7725E /* WindowArrangements.h */; };
 		1DCA5ED013EE507800B7725E /* WindowArrangements.m in Sources */ = {isa = PBXBuildFile; fileRef = 1DCA5ECE13EE507800B7725E /* WindowArrangements.m */; };
-		1DCA8BA9121A1B8000ABDEB5 /* PrefsAdvanced.tiff in Resources */ = {isa = PBXBuildFile; fileRef = 1DCA8BA3121A1B8000ABDEB5 /* PrefsAdvanced.tiff */; };
-		1DCA8BAA121A1B8000ABDEB5 /* PrefsBookmarks.tiff in Resources */ = {isa = PBXBuildFile; fileRef = 1DCA8BA4121A1B8000ABDEB5 /* PrefsBookmarks.tiff */; };
-		1DCA8BAB121A1B8000ABDEB5 /* PrefsDisplay.tiff in Resources */ = {isa = PBXBuildFile; fileRef = 1DCA8BA5121A1B8000ABDEB5 /* PrefsDisplay.tiff */; };
-		1DCA8BAC121A1B8000ABDEB5 /* PrefsGeneral.tiff in Resources */ = {isa = PBXBuildFile; fileRef = 1DCA8BA6121A1B8000ABDEB5 /* PrefsGeneral.tiff */; };
-		1DCA8BAD121A1B8000ABDEB5 /* PrefsKeyboard.tiff in Resources */ = {isa = PBXBuildFile; fileRef = 1DCA8BA7121A1B8000ABDEB5 /* PrefsKeyboard.tiff */; };
-		1DCA8BAE121A1B8000ABDEB5 /* PrefsTerminal.tiff in Resources */ = {isa = PBXBuildFile; fileRef = 1DCA8BA8121A1B8000ABDEB5 /* PrefsTerminal.tiff */; };
 		1DCBC811126DD98200D5B961 /* WindowControllerInterface.h in Headers */ = {isa = PBXBuildFile; fileRef = 1DCBC810126DD98200D5B961 /* WindowControllerInterface.h */; };
 		1DCF3CB71222FF1400AD56F1 /* PresetKeyMappings.plist in Resources */ = {isa = PBXBuildFile; fileRef = 1DCF3CB61222FF1400AD56F1 /* PresetKeyMappings.plist */; };
 		1DCF3E8F122419D200AD56F1 /* ProfileModel.m in Sources */ = {isa = PBXBuildFile; fileRef = 1DCF3E8D122419D200AD56F1 /* ProfileModel.m */; };
@@ -402,6 +396,18 @@
 		874206530564169600CFC3F1 /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0464AB2F006CD2EC7F000001 /* AppKit.framework */; };
 		9325FF500FB54E00004EC67C /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 9325FF4E0FB54E00004EC67C /* MainMenu.xib */; };
 		93A6FEFA10685E9900A5F905 /* dsa_pub.pem in Resources */ = {isa = PBXBuildFile; fileRef = 93A6FEF910685E9900A5F905 /* dsa_pub.pem */; };
+		9D737D5F17495B4100B3334D /* PrefsGeneral.png in Resources */ = {isa = PBXBuildFile; fileRef = 9D737D5D17495B4100B3334D /* PrefsGeneral.png */; };
+		9D737D6017495B4100B3334D /* PrefsGeneral@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 9D737D5E17495B4100B3334D /* PrefsGeneral@2x.png */; };
+		9DB3D6E0176C8F0B0071CCF8 /* PrefsAppearance.png in Resources */ = {isa = PBXBuildFile; fileRef = 9DB3D6DE176C8F0B0071CCF8 /* PrefsAppearance.png */; };
+		9DB3D6E1176C8F0B0071CCF8 /* PrefsAppearance@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 9DB3D6DF176C8F0B0071CCF8 /* PrefsAppearance@2x.png */; };
+		9DB3D6E4176CB4D80071CCF8 /* PrefsProfile.png in Resources */ = {isa = PBXBuildFile; fileRef = 9DB3D6E2176CB4D80071CCF8 /* PrefsProfile.png */; };
+		9DB3D6E5176CB4D80071CCF8 /* PrefsProfile@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 9DB3D6E3176CB4D80071CCF8 /* PrefsProfile@2x.png */; };
+		9DB3D6E8176CBC0C0071CCF8 /* PrefsKeyboard.png in Resources */ = {isa = PBXBuildFile; fileRef = 9DB3D6E6176CBC0C0071CCF8 /* PrefsKeyboard.png */; };
+		9DB3D6E9176CBC0C0071CCF8 /* PrefsKeyboard@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 9DB3D6E7176CBC0C0071CCF8 /* PrefsKeyboard@2x.png */; };
+		9DB3D6EC176CC47E0071CCF8 /* PrefsMouse.png in Resources */ = {isa = PBXBuildFile; fileRef = 9DB3D6EA176CC47E0071CCF8 /* PrefsMouse.png */; };
+		9DB3D6ED176CC47E0071CCF8 /* PrefsMouse@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 9DB3D6EB176CC47E0071CCF8 /* PrefsMouse@2x.png */; };
+		9DB3D6F0176CCABE0071CCF8 /* PrefsArrangements.png in Resources */ = {isa = PBXBuildFile; fileRef = 9DB3D6EE176CCABE0071CCF8 /* PrefsArrangements.png */; };
+		9DB3D6F1176CCABE0071CCF8 /* PrefsArrangements@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 9DB3D6EF176CCABE0071CCF8 /* PrefsArrangements@2x.png */; };
 		A073973E14C768E400786414 /* ColorsMenuItemView.h in Headers */ = {isa = PBXBuildFile; fileRef = A073973D14C768E400786414 /* ColorsMenuItemView.h */; };
 		A073974014C7694600786414 /* ColorsMenuItemView.m in Sources */ = {isa = PBXBuildFile; fileRef = A073973F14C7694600786414 /* ColorsMenuItemView.m */; };
 		DDF0FD65062916F70080EF74 /* iTermApplication.h in Headers */ = {isa = PBXBuildFile; fileRef = DDF0FD63062916F70080EF74 /* iTermApplication.h */; };
@@ -551,6 +557,7 @@
 		1D67ABAA14285D6000D5DA4E /* NSFileManager+DirectoryLocations.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSFileManager+DirectoryLocations.m"; sourceTree = "<group>"; };
 		1D6944D5169E96AC00C7048A /* ThreeFingerTapGestureRecognizer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ThreeFingerTapGestureRecognizer.h; sourceTree = "<group>"; };
 		1D6944D6169E96AC00C7048A /* ThreeFingerTapGestureRecognizer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ThreeFingerTapGestureRecognizer.m; sourceTree = "<group>"; };
+		1D699BC317CABC060094F0C1 /* CharacterRunInline.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CharacterRunInline.h; sourceTree = "<group>"; };
 		1D6A5FDE140D7AA000DE19F8 /* IBarCursorXMR.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = IBarCursorXMR.png; path = images/IBarCursorXMR.png; sourceTree = "<group>"; };
 		1D6C4D59122329F000E0AA3E /* ColorPresets.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = ColorPresets.plist; sourceTree = "<group>"; };
 		1D6C50A51226EEFB00E0AA3E /* ProfileListView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ProfileListView.h; sourceTree = "<group>"; };
@@ -568,8 +575,6 @@
 		1D7C1AD21276FD6E00461E55 /* English */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = English; path = English.lproj/PasteboardHistory.xib; sourceTree = "<group>"; };
 		1D7C1D1012772ECC00461E55 /* NSDateFormatterExtras.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NSDateFormatterExtras.h; sourceTree = "<group>"; };
 		1D7C1D1112772ECC00461E55 /* NSDateFormatterExtras.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NSDateFormatterExtras.m; sourceTree = "<group>"; };
-		1D823C4712F92B3F0028422B /* screen.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = screen.png; path = images/screen.png; sourceTree = "<group>"; };
-		1D8255F614649F8E007CAE78 /* PrefsMouse.tiff */ = {isa = PBXFileReference; lastKnownFileType = image.tiff; name = PrefsMouse.tiff; path = images/PrefsMouse.tiff; sourceTree = "<group>"; };
 		1D8255F8146869D8007CAE78 /* DefaultPointerActions.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = DefaultPointerActions.plist; sourceTree = "<group>"; };
 		1D8255FA14687EE8007CAE78 /* PointerPrefsController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PointerPrefsController.h; sourceTree = "<group>"; };
 		1D8255FB14687EE8007CAE78 /* PointerPrefsController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = PointerPrefsController.m; sourceTree = "<group>"; };
@@ -584,6 +589,10 @@
 		1D85D1DA1306687700A3E998 /* RegexKitLite.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = RegexKitLite.m; sourceTree = "<group>"; };
 		1D8C6BF4126592DF00E2744E /* EncodingsWithLowerCase.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = EncodingsWithLowerCase.plist; sourceTree = "<group>"; };
 		1D8F396A13EB7A2C0025B80B /* BroadcastInput.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = BroadcastInput.png; path = images/BroadcastInput.png; sourceTree = "<group>"; };
+		1D8FC67917E673A400A82402 /* shell_launcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = shell_launcher.h; sourceTree = "<group>"; };
+		1D8FC67B17E67FA700A82402 /* shell_launcher.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = shell_launcher.c; sourceTree = "<group>"; };
+		1D9053C417A5CCF100A0B64E /* MovingAverage.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MovingAverage.h; sourceTree = "<group>"; };
+		1D9053C517A5CCF100A0B64E /* MovingAverage.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MovingAverage.m; sourceTree = "<group>"; };
 		1D93D33312695442007F741B /* DVR.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DVR.h; sourceTree = "<group>"; };
 		1D93D33412695442007F741B /* DVR.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DVR.m; sourceTree = "<group>"; };
 		1D93D3451269741B007F741B /* DVRBuffer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DVRBuffer.h; sourceTree = "<group>"; };
@@ -631,8 +640,6 @@
 		1DA030F81328BD7C00D7E7DB /* wrap_to_top.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = wrap_to_top.png; path = images/wrap_to_top.png; sourceTree = "<group>"; };
 		1DA26ABE15007507004B5792 /* BackgroundThread.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BackgroundThread.h; sourceTree = "<group>"; };
 		1DA26ABF15007507004B5792 /* BackgroundThread.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BackgroundThread.m; sourceTree = "<group>"; };
-		1DA332391692175800C77F53 /* SharedCharacterRunData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SharedCharacterRunData.h; sourceTree = "<group>"; };
-		1DA3323A1692175800C77F53 /* SharedCharacterRunData.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SharedCharacterRunData.m; sourceTree = "<group>"; };
 		1DA34E02165F268F00AA91C4 /* IBarCursor@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "IBarCursor@2x.png"; path = "images/IBarCursor@2x.png"; sourceTree = "<group>"; };
 		1DA34E03165F268F00AA91C4 /* IBarCursorXMR@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "IBarCursorXMR@2x.png"; path = "images/IBarCursorXMR@2x.png"; sourceTree = "<group>"; };
 		1DA7894714AC19F500C8FBD9 /* Growl */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = Growl; path = Growl.framework/Growl; sourceTree = "<absolute>"; };
@@ -655,16 +662,11 @@
 		1DB72CF51396059200EB1005 /* xterm-terminfo.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = "xterm-terminfo.txt"; sourceTree = "<group>"; };
 		1DC38816148E840600B89F7C /* SolidColorView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SolidColorView.h; sourceTree = "<group>"; };
 		1DC38817148E840700B89F7C /* SolidColorView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SolidColorView.m; sourceTree = "<group>"; };
+		1DC393C317B59B08000EE0F2 /* SearchResult.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SearchResult.h; sourceTree = "<group>"; };
+		1DC393C417B59B08000EE0F2 /* SearchResult.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SearchResult.m; sourceTree = "<group>"; };
 		1DC7429F127C96F90069594C /* IBarCursor.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = IBarCursor.png; path = images/IBarCursor.png; sourceTree = "<group>"; };
-		1DCA5ECB13EE4DA800B7725E /* arrangement.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = arrangement.png; path = images/arrangement.png; sourceTree = "<group>"; };
 		1DCA5ECD13EE507800B7725E /* WindowArrangements.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WindowArrangements.h; sourceTree = "<group>"; };
 		1DCA5ECE13EE507800B7725E /* WindowArrangements.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = WindowArrangements.m; sourceTree = "<group>"; };
-		1DCA8BA3121A1B8000ABDEB5 /* PrefsAdvanced.tiff */ = {isa = PBXFileReference; lastKnownFileType = image.tiff; name = PrefsAdvanced.tiff; path = images/PrefsAdvanced.tiff; sourceTree = "<group>"; };
-		1DCA8BA4121A1B8000ABDEB5 /* PrefsBookmarks.tiff */ = {isa = PBXFileReference; lastKnownFileType = image.tiff; name = PrefsBookmarks.tiff; path = images/PrefsBookmarks.tiff; sourceTree = "<group>"; };
-		1DCA8BA5121A1B8000ABDEB5 /* PrefsDisplay.tiff */ = {isa = PBXFileReference; lastKnownFileType = image.tiff; name = PrefsDisplay.tiff; path = images/PrefsDisplay.tiff; sourceTree = "<group>"; };
-		1DCA8BA6121A1B8000ABDEB5 /* PrefsGeneral.tiff */ = {isa = PBXFileReference; lastKnownFileType = image.tiff; name = PrefsGeneral.tiff; path = images/PrefsGeneral.tiff; sourceTree = "<group>"; };
-		1DCA8BA7121A1B8000ABDEB5 /* PrefsKeyboard.tiff */ = {isa = PBXFileReference; lastKnownFileType = image.tiff; name = PrefsKeyboard.tiff; path = images/PrefsKeyboard.tiff; sourceTree = "<group>"; };
-		1DCA8BA8121A1B8000ABDEB5 /* PrefsTerminal.tiff */ = {isa = PBXFileReference; lastKnownFileType = image.tiff; name = PrefsTerminal.tiff; path = images/PrefsTerminal.tiff; sourceTree = "<group>"; };
 		1DCBC810126DD98200D5B961 /* WindowControllerInterface.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WindowControllerInterface.h; sourceTree = "<group>"; };
 		1DCF3CB61222FF1400AD56F1 /* PresetKeyMappings.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = PresetKeyMappings.plist; sourceTree = "<group>"; };
 		1DCF3E8D122419D200AD56F1 /* ProfileModel.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; lineEnding = 0; path = ProfileModel.m; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objc; };
@@ -740,6 +742,18 @@
 		9325FF470FB54DF1004EC67C /* English */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = English; path = English.lproj/BookmarksWindow.xib; sourceTree = "<group>"; };
 		9325FF4F0FB54E00004EC67C /* English */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = English; path = English.lproj/MainMenu.xib; sourceTree = "<group>"; };
 		93A6FEF910685E9900A5F905 /* dsa_pub.pem */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = dsa_pub.pem; sourceTree = "<group>"; };
+		9D737D5D17495B4100B3334D /* PrefsGeneral.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = PrefsGeneral.png; path = images/PrefsGeneral.png; sourceTree = "<group>"; };
+		9D737D5E17495B4100B3334D /* PrefsGeneral@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "PrefsGeneral@2x.png"; path = "images/PrefsGeneral@2x.png"; sourceTree = "<group>"; };
+		9DB3D6DE176C8F0B0071CCF8 /* PrefsAppearance.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = PrefsAppearance.png; path = images/PrefsAppearance.png; sourceTree = "<group>"; };
+		9DB3D6DF176C8F0B0071CCF8 /* PrefsAppearance@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "PrefsAppearance@2x.png"; path = "images/PrefsAppearance@2x.png"; sourceTree = "<group>"; };
+		9DB3D6E2176CB4D80071CCF8 /* PrefsProfile.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = PrefsProfile.png; path = images/PrefsProfile.png; sourceTree = "<group>"; };
+		9DB3D6E3176CB4D80071CCF8 /* PrefsProfile@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "PrefsProfile@2x.png"; path = "images/PrefsProfile@2x.png"; sourceTree = "<group>"; };
+		9DB3D6E6176CBC0C0071CCF8 /* PrefsKeyboard.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = PrefsKeyboard.png; path = images/PrefsKeyboard.png; sourceTree = "<group>"; };
+		9DB3D6E7176CBC0C0071CCF8 /* PrefsKeyboard@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "PrefsKeyboard@2x.png"; path = "images/PrefsKeyboard@2x.png"; sourceTree = "<group>"; };
+		9DB3D6EA176CC47E0071CCF8 /* PrefsMouse.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = PrefsMouse.png; path = images/PrefsMouse.png; sourceTree = "<group>"; };
+		9DB3D6EB176CC47E0071CCF8 /* PrefsMouse@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "PrefsMouse@2x.png"; path = "images/PrefsMouse@2x.png"; sourceTree = "<group>"; };
+		9DB3D6EE176CCABE0071CCF8 /* PrefsArrangements.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = PrefsArrangements.png; path = images/PrefsArrangements.png; sourceTree = "<group>"; };
+		9DB3D6EF176CCABE0071CCF8 /* PrefsArrangements@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "PrefsArrangements@2x.png"; path = "images/PrefsArrangements@2x.png"; sourceTree = "<group>"; };
 		A073973D14C768E400786414 /* ColorsMenuItemView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ColorsMenuItemView.h; sourceTree = "<group>"; };
 		A073973F14C7694600786414 /* ColorsMenuItemView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ColorsMenuItemView.m; sourceTree = "<group>"; };
 		DD02572409CB9398008F320C /* PSMAquaTabStyle.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = PSMAquaTabStyle.h; sourceTree = "<group>"; };
@@ -900,6 +914,7 @@
 				1DA26ABE15007507004B5792 /* BackgroundThread.h */,
 				1DA26ABF15007507004B5792 /* BackgroundThread.m */,
 				1D48B377167E809D000046EE /* CharacterRun.h */,
+				1D699BC317CABC060094F0C1 /* CharacterRunInline.h */,
 				1D48B378167E809D000046EE /* CharacterRun.m */,
 				1D9DDD9B142E5FBB00275650 /* Coprocess.m */,
 				1D237D27131D8741004DD60C /* FindView.m */,
@@ -921,6 +936,8 @@
 				1DAED99112EDF923005E49ED /* iTermSearchField.m */,
 				1D72438C11F416E500BD4924 /* LineBuffer.m */,
 				1D29732614082676004C5DBE /* MovePaneController.m */,
+				1D9053C417A5CCF100A0B64E /* MovingAverage.h */,
+				1D9053C517A5CCF100A0B64E /* MovingAverage.m */,
 				1D085F8416F02E7400B7FCE9 /* PasteContext.h */,
 				1D085F8516F02E7400B7FCE9 /* PasteContext.m */,
 				1D085F9816F1135F00B7FCE9 /* PasteEvent.h */,
@@ -946,10 +963,12 @@
 				1D085F9C16F137D900B7FCE9 /* RoundedRectView.h */,
 				1D085F9D16F137D900B7FCE9 /* RoundedRectView.m */,
 				1D36155412CBF33E00803EA9 /* ScreenChar.m */,
+				1DC393C317B59B08000EE0F2 /* SearchResult.h */,
+				1DC393C417B59B08000EE0F2 /* SearchResult.m */,
 				1DEDC8FC1451F67D004F1615 /* SessionTitleView.m */,
 				1D2E813012A18F7500F3D71E /* SessionView.m */,
-				1DA332391692175800C77F53 /* SharedCharacterRunData.h */,
-				1DA3323A1692175800C77F53 /* SharedCharacterRunData.m */,
+				1D8FC67B17E67FA700A82402 /* shell_launcher.c */,
+				1D8FC67917E673A400A82402 /* shell_launcher.h */,
 				1D29732A14082A52004C5DBE /* SplitSelectionView.m */,
 				1DF8AF5713FD781700C8A435 /* SplitPanel.m */,
 				1D6944D5169E96AC00C7048A /* ThreeFingerTapGestureRecognizer.h */,
@@ -1185,16 +1204,24 @@
 		1D093C131217412B0029F9AD /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				9DB3D6E2176CB4D80071CCF8 /* PrefsProfile.png */,
+				9DB3D6E3176CB4D80071CCF8 /* PrefsProfile@2x.png */,
+				9DB3D6DE176C8F0B0071CCF8 /* PrefsAppearance.png */,
+				9DB3D6DF176C8F0B0071CCF8 /* PrefsAppearance@2x.png */,
+				9DB3D6E6176CBC0C0071CCF8 /* PrefsKeyboard.png */,
+				9DB3D6E7176CBC0C0071CCF8 /* PrefsKeyboard@2x.png */,
+				9DB3D6EA176CC47E0071CCF8 /* PrefsMouse.png */,
+				9DB3D6EB176CC47E0071CCF8 /* PrefsMouse@2x.png */,
+				9DB3D6EE176CCABE0071CCF8 /* PrefsArrangements.png */,
+				9DB3D6EF176CCABE0071CCF8 /* PrefsArrangements@2x.png */,
 				1D48B2F8165F45BA000046EE /* star@2x.png */,
 				1D48B293165F4416000046EE /* star.png */,
 				1D48B291165F405A000046EE /* important@2x.png */,
 				FBB2EBCD040AC7C201F955DB /* important.png */,
 				1DA34E02165F268F00AA91C4 /* IBarCursor@2x.png */,
-				1D8255F614649F8E007CAE78 /* PrefsMouse.tiff */,
 				5ECE4AE914514058002A9CC2 /* Growl Registration Ticket.growlRegDict */,
 				1D9DDE9D142E855D00275650 /* Coprocess.png */,
 				1D19C3621415998E00617E08 /* closebutton.tif */,
-				1DCA5ECB13EE4DA800B7725E /* arrangement.png */,
 				1D6A5FDE140D7AA000DE19F8 /* IBarCursorXMR.png */,
 				1DA34E03165F268F00AA91C4 /* IBarCursorXMR@2x.png */,
 				1D8F396A13EB7A2C0025B80B /* BroadcastInput.png */,
@@ -1202,20 +1229,15 @@
 				1DA02CFA1327612600D7E7DB /* bell.png */,
 				1DA030F71328BD7C00D7E7DB /* wrap_to_bottom.png */,
 				1DA030F81328BD7C00D7E7DB /* wrap_to_top.png */,
-				1D823C4712F92B3F0028422B /* screen.png */,
 				1DC7429F127C96F90069594C /* IBarCursor.png */,
 				1D53A6AE1232DA3B00B7767B /* DefaultGlobalKeyMap.plist */,
 				1D8C6BF4126592DF00E2744E /* EncodingsWithLowerCase.plist */,
 				1D6C4D59122329F000E0AA3E /* ColorPresets.plist */,
 				1DCF3EC51224D03D00AD56F1 /* DefaultBookmark.plist */,
 				1DCF3EFF1224EEBD00AD56F1 /* MigrationMap.plist */,
-				1DCA8BA3121A1B8000ABDEB5 /* PrefsAdvanced.tiff */,
-				1DCA8BA4121A1B8000ABDEB5 /* PrefsBookmarks.tiff */,
+				9D737D5D17495B4100B3334D /* PrefsGeneral.png */,
+				9D737D5E17495B4100B3334D /* PrefsGeneral@2x.png */,
 				1DB72CF51396059200EB1005 /* xterm-terminfo.txt */,
-				1DCA8BA5121A1B8000ABDEB5 /* PrefsDisplay.tiff */,
-				1DCA8BA6121A1B8000ABDEB5 /* PrefsGeneral.tiff */,
-				1DCA8BA7121A1B8000ABDEB5 /* PrefsKeyboard.tiff */,
-				1DCA8BA8121A1B8000ABDEB5 /* PrefsTerminal.tiff */,
 				1DCF3CB61222FF1400AD56F1 /* PresetKeyMappings.plist */,
 				1D1158C913444D29009B366F /* iTerm2 Help */,
 				1D8255F8146869D8007CAE78 /* DefaultPointerActions.plist */,
@@ -1641,7 +1663,6 @@
 				1D48B32316706FC3000046EE /* NSView+iTerm.h in Headers */,
 				1D48B379167E809D000046EE /* CharacterRun.h in Headers */,
 				1D70BA351680158700824B72 /* PTYFontInfo.h in Headers */,
-				1DA3323B1692175800C77F53 /* SharedCharacterRunData.h in Headers */,
 				1D6944D7169E96AC00C7048A /* ThreeFingerTapGestureRecognizer.h in Headers */,
 				1D085F8616F02E7400B7FCE9 /* PasteContext.h in Headers */,
 				1D085F8D16F0328B00B7FCE9 /* PasteViewController.h in Headers */,
@@ -1650,6 +1671,8 @@
 				1D085F9A16F1135F00B7FCE9 /* PasteEvent.h in Headers */,
 				1D085F9E16F137D900B7FCE9 /* RoundedRectView.h in Headers */,
 				1D085FA216F138A100B7FCE9 /* ToastWindowController.h in Headers */,
+				1D9053C617A5CCF100A0B64E /* MovingAverage.h in Headers */,
+				1D699BC417CABC060094F0C1 /* CharacterRunInline.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1751,12 +1774,6 @@
 				F6CDC4E70AE6D3E2005E7D4F /* folder.png in Resources */,
 				9325FF500FB54E00004EC67C /* MainMenu.xib in Resources */,
 				93A6FEFA10685E9900A5F905 /* dsa_pub.pem in Resources */,
-				1DCA8BA9121A1B8000ABDEB5 /* PrefsAdvanced.tiff in Resources */,
-				1DCA8BAA121A1B8000ABDEB5 /* PrefsBookmarks.tiff in Resources */,
-				1DCA8BAB121A1B8000ABDEB5 /* PrefsDisplay.tiff in Resources */,
-				1DCA8BAC121A1B8000ABDEB5 /* PrefsGeneral.tiff in Resources */,
-				1DCA8BAD121A1B8000ABDEB5 /* PrefsKeyboard.tiff in Resources */,
-				1DCA8BAE121A1B8000ABDEB5 /* PrefsTerminal.tiff in Resources */,
 				1DCF3CB71222FF1400AD56F1 /* PresetKeyMappings.plist in Resources */,
 				1D6C4D5A122329F000E0AA3E /* ColorPresets.plist in Resources */,
 				1DCF3EC61224D03D00AD56F1 /* DefaultBookmark.plist in Resources */,
@@ -1770,7 +1787,6 @@
 				1D94EAB012D64022008225A9 /* UKCrashReporter.nib in Resources */,
 				1D94EAB112D64022008225A9 /* UKCrashReporter.strings in Resources */,
 				1D99785312EEB3D600F0794D /* GlobalSearch.xib in Resources */,
-				1D823C4812F92B3F0028422B /* screen.png in Resources */,
 				1D237D90131D8BEE004DD60C /* FindView.xib in Resources */,
 				1DA02CFB1327612600D7E7DB /* bell.png in Resources */,
 				1DA030F91328BD7C00D7E7DB /* wrap_to_bottom.png in Resources */,
@@ -1779,13 +1795,11 @@
 				1D395913134E75B5005A8021 /* SmartSelectionRules.plist in Resources */,
 				1DB72CF61396059200EB1005 /* xterm-terminfo.txt in Resources */,
 				1D8F396B13EB7A2C0025B80B /* BroadcastInput.png in Resources */,
-				1DCA5ECC13EE4DA800B7725E /* arrangement.png in Resources */,
 				1D844C8D13FD8B7700CD4F85 /* SplitPanel.xib in Resources */,
 				1D6A5FDF140D7AA000DE19F8 /* IBarCursorXMR.png in Resources */,
 				1D19C3631415998E00617E08 /* closebutton.tif in Resources */,
 				1D9DDE9E142E855D00275650 /* Coprocess.png in Resources */,
 				5ECE4AEA14514058002A9CC2 /* Growl Registration Ticket.growlRegDict in Resources */,
-				1D8255F714649F8E007CAE78 /* PrefsMouse.tiff in Resources */,
 				1D8255F9146869D8007CAE78 /* DefaultPointerActions.plist in Resources */,
 				1DD4CE7D14A5163B00ED182E /* TmuxDashboard.xib in Resources */,
 				1DA34E04165F268F00AA91C4 /* IBarCursor@2x.png in Resources */,
@@ -1805,6 +1819,18 @@
 				1D48B294165F4416000046EE /* star.png in Resources */,
 				1D48B2F9165F45BA000046EE /* star@2x.png in Resources */,
 				1D085F8916F030FB00B7FCE9 /* PasteView.xib in Resources */,
+				9D737D5F17495B4100B3334D /* PrefsGeneral.png in Resources */,
+				9D737D6017495B4100B3334D /* PrefsGeneral@2x.png in Resources */,
+				9DB3D6E0176C8F0B0071CCF8 /* PrefsAppearance.png in Resources */,
+				9DB3D6E1176C8F0B0071CCF8 /* PrefsAppearance@2x.png in Resources */,
+				9DB3D6E4176CB4D80071CCF8 /* PrefsProfile.png in Resources */,
+				9DB3D6E5176CB4D80071CCF8 /* PrefsProfile@2x.png in Resources */,
+				9DB3D6E8176CBC0C0071CCF8 /* PrefsKeyboard.png in Resources */,
+				9DB3D6E9176CBC0C0071CCF8 /* PrefsKeyboard@2x.png in Resources */,
+				9DB3D6EC176CC47E0071CCF8 /* PrefsMouse.png in Resources */,
+				9DB3D6ED176CC47E0071CCF8 /* PrefsMouse@2x.png in Resources */,
+				9DB3D6F0176CCABE0071CCF8 /* PrefsArrangements.png in Resources */,
+				9DB3D6F1176CCABE0071CCF8 /* PrefsArrangements@2x.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1847,6 +1873,7 @@
 				1D5FDDA61208E93600C46BA3 /* PTYScrollView.m in Sources */,
 				1D5FDDA71208E93600C46BA3 /* PTYTextView.m in Sources */,
 				1D5FDDA81208E93600C46BA3 /* PTYTask.m in Sources */,
+				1D0AABC217B59B3D0072B5AF /* SearchResult.m in Sources */,
 				1D5FDDA91208E93600C46BA3 /* VT100Screen.m in Sources */,
 				1D5FDDAA1208E93600C46BA3 /* VT100Terminal.m in Sources */,
 				1D5FDDAB1208E93600C46BA3 /* iTermController.m in Sources */,
@@ -1963,7 +1990,6 @@
 				1D48B32416706FC3000046EE /* NSView+iTerm.m in Sources */,
 				1D48B37A167E809D000046EE /* CharacterRun.m in Sources */,
 				1D70BA361680158700824B72 /* PTYFontInfo.m in Sources */,
-				1DA3323C1692175800C77F53 /* SharedCharacterRunData.m in Sources */,
 				1D6944D8169E96AC00C7048A /* ThreeFingerTapGestureRecognizer.m in Sources */,
 				1D085F8716F02E7400B7FCE9 /* PasteContext.m in Sources */,
 				1D085F8E16F0328B00B7FCE9 /* PasteViewController.m in Sources */,
@@ -1972,6 +1998,8 @@
 				1D085F9B16F1135F00B7FCE9 /* PasteEvent.m in Sources */,
 				1D085F9F16F137D900B7FCE9 /* RoundedRectView.m in Sources */,
 				1D085FA316F138A100B7FCE9 /* ToastWindowController.m in Sources */,
+				1D9053C717A5CCF100A0B64E /* MovingAverage.m in Sources */,
+				1D8FC67C17E67FA700A82402 /* shell_launcher.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2087,7 +2115,7 @@
 				);
 				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)";
 				GCC_C_LANGUAGE_STANDARD = c99;
-				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_VERSION = "";
 				GCC_WARN_PROTOTYPE_CONVERSION = NO;
 				GCC_WARN_SIGN_COMPARE = NO;
 				MACOSX_DEPLOYMENT_TARGET = 10.5;
@@ -2114,7 +2142,7 @@
 				);
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_OPTIMIZATION_LEVEL = 3;
-				GCC_VERSION = 4.2;
+				GCC_VERSION = "";
 				GCC_WARN_ABOUT_MISSING_PROTOTYPES = YES;
 				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
 				GCC_WARN_MISSING_PARENTHESES = YES;
@@ -2140,9 +2168,48 @@
 					"-licucore",
 				);
 				PRODUCT_NAME = iTerm;
-				SDKROOT = macosx10.6;
+				SDKROOT = macosx;
 				VALID_ARCHS = "ppc i386 x86_64";
-				WARNING_CFLAGS = "-Wall";
+				WARNING_CFLAGS = (
+					"-Wall",
+					"-Wendif-labels",
+					"-Werror",
+					"-Wnewline-eof",
+					"-Wno-bool-conversion",
+					"-Wno-constant-conversion",
+					"-Wno-conversion",
+					"-Wno-deprecated-declarations",
+					"-Wno-deprecated-implementations",
+					"-Wno-empty-body",
+					"-Wno-enum-conversion",
+					"-Wno-error=deprecated-declarations",
+					"-Wno-four-char-constants",
+					"-Wno-implicit-atomic-properties",
+					"-Wno-int-conversion",
+					"-Wno-missing-braces",
+					"-Wno-missing-field-initializers",
+					"-Wno-missing-prototypes",
+					"-Wno-newline-eof",
+					"-Wno-receiver-is-weak",
+					"-Wno-selector",
+					"-Wno-shadow",
+					"-Wno-shorten-64-to-32",
+					"-Wno-sign-conversion",
+					"-Wno-strict-selector-match",
+					"-Wno-trigraphs",
+					"-Wno-undeclared-selector",
+					"-Wno-uninitialized",
+					"-Wno-unknown-pragmas",
+					"-Wno-unused-function",
+					"-Wno-unused-label",
+					"-Wno-unused-parameter",
+					"-Wno-unused-variable",
+					"-Wparentheses",
+					"-Wpointer-sign",
+					"-Wprotocol",
+					"-Wswitch",
+					"-Wunused-value",
+				);
 				WRAPPER_EXTENSION = app;
 				ZERO_LINK = NO;
 			};
@@ -2154,7 +2221,7 @@
 				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
 				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)";
 				GCC_C_LANGUAGE_STANDARD = c99;
-				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_VERSION = "";
 				GCC_WARN_PROTOTYPE_CONVERSION = NO;
 				GCC_WARN_SIGN_COMPARE = NO;
 				MACOSX_DEPLOYMENT_TARGET = 10.5;
@@ -2177,7 +2244,7 @@
 				);
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_OPTIMIZATION_LEVEL = 3;
-				GCC_VERSION = com.apple.compilers.llvmgcc42;
+				GCC_VERSION = "";
 				GCC_WARN_ABOUT_MISSING_PROTOTYPES = YES;
 				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
 				GCC_WARN_MISSING_PARENTHESES = YES;
@@ -2203,9 +2270,48 @@
 					"-licucore",
 				);
 				PRODUCT_NAME = iTerm;
-				SDKROOT = macosx10.6;
+				SDKROOT = macosx;
 				VALID_ARCHS = "i386 x86_64";
-				WARNING_CFLAGS = "-Wall";
+				WARNING_CFLAGS = (
+					"-Wall",
+					"-Wendif-labels",
+					"-Werror",
+					"-Wnewline-eof",
+					"-Wno-bool-conversion",
+					"-Wno-constant-conversion",
+					"-Wno-conversion",
+					"-Wno-deprecated-declarations",
+					"-Wno-deprecated-implementations",
+					"-Wno-empty-body",
+					"-Wno-enum-conversion",
+					"-Wno-error=deprecated-declarations",
+					"-Wno-four-char-constants",
+					"-Wno-implicit-atomic-properties",
+					"-Wno-int-conversion",
+					"-Wno-missing-braces",
+					"-Wno-missing-field-initializers",
+					"-Wno-missing-prototypes",
+					"-Wno-newline-eof",
+					"-Wno-receiver-is-weak",
+					"-Wno-selector",
+					"-Wno-shadow",
+					"-Wno-shorten-64-to-32",
+					"-Wno-sign-conversion",
+					"-Wno-strict-selector-match",
+					"-Wno-trigraphs",
+					"-Wno-undeclared-selector",
+					"-Wno-uninitialized",
+					"-Wno-unknown-pragmas",
+					"-Wno-unused-function",
+					"-Wno-unused-label",
+					"-Wno-unused-parameter",
+					"-Wno-unused-variable",
+					"-Wparentheses",
+					"-Wpointer-sign",
+					"-Wprotocol",
+					"-Wswitch",
+					"-Wunused-value",
+				);
 				WRAPPER_EXTENSION = app;
 				ZERO_LINK = NO;
 			};
@@ -2221,7 +2327,7 @@
 				);
 				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)";
 				GCC_C_LANGUAGE_STANDARD = c99;
-				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_VERSION = "";
 				GCC_WARN_PROTOTYPE_CONVERSION = NO;
 				GCC_WARN_SIGN_COMPARE = NO;
 				MACOSX_DEPLOYMENT_TARGET = 10.5;
@@ -2249,7 +2355,7 @@
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_OPTIMIZATION_LEVEL = 3;
 				"GCC_PREPROCESSOR_DEFINITIONS[arch=*]" = BLOCKS_NOT_AVAILABLE;
-				GCC_VERSION = com.apple.compilers.llvmgcc42;
+				GCC_VERSION = "";
 				GCC_WARN_ABOUT_MISSING_PROTOTYPES = YES;
 				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
 				GCC_WARN_MISSING_PARENTHESES = YES;
@@ -2275,9 +2381,48 @@
 					"-licucore",
 				);
 				PRODUCT_NAME = iTerm;
-				SDKROOT = macosx10.5;
+				SDKROOT = macosx;
 				VALID_ARCHS = "ppc i386 x86_64";
-				WARNING_CFLAGS = "-Wall";
+				WARNING_CFLAGS = (
+					"-Wall",
+					"-Wendif-labels",
+					"-Werror",
+					"-Wnewline-eof",
+					"-Wno-bool-conversion",
+					"-Wno-constant-conversion",
+					"-Wno-conversion",
+					"-Wno-deprecated-declarations",
+					"-Wno-deprecated-implementations",
+					"-Wno-empty-body",
+					"-Wno-enum-conversion",
+					"-Wno-error=deprecated-declarations",
+					"-Wno-four-char-constants",
+					"-Wno-implicit-atomic-properties",
+					"-Wno-int-conversion",
+					"-Wno-missing-braces",
+					"-Wno-missing-field-initializers",
+					"-Wno-missing-prototypes",
+					"-Wno-newline-eof",
+					"-Wno-receiver-is-weak",
+					"-Wno-selector",
+					"-Wno-shadow",
+					"-Wno-shorten-64-to-32",
+					"-Wno-sign-conversion",
+					"-Wno-strict-selector-match",
+					"-Wno-trigraphs",
+					"-Wno-undeclared-selector",
+					"-Wno-uninitialized",
+					"-Wno-unknown-pragmas",
+					"-Wno-unused-function",
+					"-Wno-unused-label",
+					"-Wno-unused-parameter",
+					"-Wno-unused-variable",
+					"-Wparentheses",
+					"-Wpointer-sign",
+					"-Wprotocol",
+					"-Wswitch",
+					"-Wunused-value",
+				);
 				WRAPPER_EXTENSION = app;
 				ZERO_LINK = NO;
 			};
@@ -2297,7 +2442,7 @@
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_VERSION = "";
 				GCC_WARN_ABOUT_MISSING_PROTOTYPES = YES;
 				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
 				GCC_WARN_MISSING_PARENTHESES = YES;
@@ -2323,10 +2468,49 @@
 					"-licucore",
 				);
 				PRODUCT_NAME = iTerm;
-				SDKROOT = macosx10.7;
+				SDKROOT = macosx;
 				SECTORDER_FLAGS = "";
 				VALID_ARCHS = "ppc i386 x86_64";
-				WARNING_CFLAGS = "-Wall";
+				WARNING_CFLAGS = (
+					"-Wall",
+					"-Wendif-labels",
+					"-Werror",
+					"-Wnewline-eof",
+					"-Wno-bool-conversion",
+					"-Wno-constant-conversion",
+					"-Wno-conversion",
+					"-Wno-deprecated-declarations",
+					"-Wno-deprecated-implementations",
+					"-Wno-empty-body",
+					"-Wno-enum-conversion",
+					"-Wno-error=deprecated-declarations",
+					"-Wno-four-char-constants",
+					"-Wno-implicit-atomic-properties",
+					"-Wno-int-conversion",
+					"-Wno-missing-braces",
+					"-Wno-missing-field-initializers",
+					"-Wno-missing-prototypes",
+					"-Wno-newline-eof",
+					"-Wno-receiver-is-weak",
+					"-Wno-selector",
+					"-Wno-shadow",
+					"-Wno-shorten-64-to-32",
+					"-Wno-sign-conversion",
+					"-Wno-strict-selector-match",
+					"-Wno-trigraphs",
+					"-Wno-undeclared-selector",
+					"-Wno-uninitialized",
+					"-Wno-unknown-pragmas",
+					"-Wno-unused-function",
+					"-Wno-unused-label",
+					"-Wno-unused-parameter",
+					"-Wno-unused-variable",
+					"-Wparentheses",
+					"-Wpointer-sign",
+					"-Wprotocol",
+					"-Wswitch",
+					"-Wunused-value",
+				);
 				WRAPPER_EXTENSION = app;
 				ZERO_LINK = YES;
 			};
@@ -2345,7 +2529,7 @@
 				);
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_OPTIMIZATION_LEVEL = 3;
-				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_VERSION = "";
 				GCC_WARN_ABOUT_MISSING_PROTOTYPES = YES;
 				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
 				GCC_WARN_MISSING_PARENTHESES = YES;
@@ -2373,7 +2557,46 @@
 				PRODUCT_NAME = iTerm;
 				SDKROOT = macosx10.7;
 				VALID_ARCHS = "i386 x86_64";
-				WARNING_CFLAGS = "-Wall";
+				WARNING_CFLAGS = (
+					"-Wall",
+					"-Wendif-labels",
+					"-Werror",
+					"-Wnewline-eof",
+					"-Wno-bool-conversion",
+					"-Wno-constant-conversion",
+					"-Wno-conversion",
+					"-Wno-deprecated-declarations",
+					"-Wno-deprecated-implementations",
+					"-Wno-empty-body",
+					"-Wno-enum-conversion",
+					"-Wno-error=deprecated-declarations",
+					"-Wno-four-char-constants",
+					"-Wno-implicit-atomic-properties",
+					"-Wno-int-conversion",
+					"-Wno-missing-braces",
+					"-Wno-missing-field-initializers",
+					"-Wno-missing-prototypes",
+					"-Wno-newline-eof",
+					"-Wno-receiver-is-weak",
+					"-Wno-selector",
+					"-Wno-shadow",
+					"-Wno-shorten-64-to-32",
+					"-Wno-sign-conversion",
+					"-Wno-strict-selector-match",
+					"-Wno-trigraphs",
+					"-Wno-undeclared-selector",
+					"-Wno-uninitialized",
+					"-Wno-unknown-pragmas",
+					"-Wno-unused-function",
+					"-Wno-unused-label",
+					"-Wno-unused-parameter",
+					"-Wno-unused-variable",
+					"-Wparentheses",
+					"-Wpointer-sign",
+					"-Wprotocol",
+					"-Wswitch",
+					"-Wunused-value",
+				);
 				WRAPPER_EXTENSION = app;
 				ZERO_LINK = NO;
 			};
@@ -2391,7 +2614,7 @@
 				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_MODEL_TUNING = G4;
 				GCC_OPTIMIZATION_LEVEL = 3;
-				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_VERSION = "";
 				GCC_WARN_ABOUT_MISSING_PROTOTYPES = YES;
 				GCC_WARN_FOUR_CHARACTER_CONSTANTS = NO;
 				GCC_WARN_MISSING_PARENTHESES = YES;
@@ -2421,7 +2644,46 @@
 				SDKROOT = macosx;
 				SECTORDER_FLAGS = "";
 				VALID_ARCHS = "ppc i386 x86_64";
-				WARNING_CFLAGS = "-Wall";
+				WARNING_CFLAGS = (
+					"-Wall",
+					"-Wendif-labels",
+					"-Werror",
+					"-Wnewline-eof",
+					"-Wno-bool-conversion",
+					"-Wno-constant-conversion",
+					"-Wno-conversion",
+					"-Wno-deprecated-declarations",
+					"-Wno-deprecated-implementations",
+					"-Wno-empty-body",
+					"-Wno-enum-conversion",
+					"-Wno-error=deprecated-declarations",
+					"-Wno-four-char-constants",
+					"-Wno-implicit-atomic-properties",
+					"-Wno-int-conversion",
+					"-Wno-missing-braces",
+					"-Wno-missing-field-initializers",
+					"-Wno-missing-prototypes",
+					"-Wno-newline-eof",
+					"-Wno-receiver-is-weak",
+					"-Wno-selector",
+					"-Wno-shadow",
+					"-Wno-shorten-64-to-32",
+					"-Wno-sign-conversion",
+					"-Wno-strict-selector-match",
+					"-Wno-trigraphs",
+					"-Wno-undeclared-selector",
+					"-Wno-uninitialized",
+					"-Wno-unknown-pragmas",
+					"-Wno-unused-function",
+					"-Wno-unused-label",
+					"-Wno-unused-parameter",
+					"-Wno-unused-variable",
+					"-Wparentheses",
+					"-Wpointer-sign",
+					"-Wprotocol",
+					"-Wswitch",
+					"-Wunused-value",
+				);
 				WRAPPER_EXTENSION = app;
 			};
 			name = Default;
@@ -2432,7 +2694,7 @@
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)";
 				GCC_C_LANGUAGE_STANDARD = c99;
-				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_VERSION = "";
 				GCC_WARN_CHECK_SWITCH_STATEMENTS = YES;
 				GCC_WARN_MISSING_PARENTHESES = YES;
 				GCC_WARN_PROTOTYPE_CONVERSION = NO;
@@ -2454,7 +2716,7 @@
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)";
 				GCC_C_LANGUAGE_STANDARD = c99;
-				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_VERSION = "";
 				GCC_WARN_PROTOTYPE_CONVERSION = NO;
 				GCC_WARN_SIGN_COMPARE = NO;
 				MACOSX_DEPLOYMENT_TARGET = 10.5;
@@ -2469,7 +2731,7 @@
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)";
-				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				GCC_VERSION = "";
 				GCC_WARN_PROTOTYPE_CONVERSION = NO;
 				GCC_WARN_SIGN_COMPARE = NO;
 				MACOSX_DEPLOYMENT_TARGET = 10.5;
